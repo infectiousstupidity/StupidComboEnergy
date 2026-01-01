@@ -17,6 +17,16 @@ local castState = {
 }
 
 local pfEnv = nil
+local function mod(a, b)
+  if b == 0 then return 0 end
+  if math.fmod then
+    return math.fmod(a, b)
+  end
+  if math.mod then
+    return math.mod(a, b)
+  end
+  return a - floor(a / b) * b
+end
 
 local function isEnabled(val, defaultOn)
   if val == nil then
@@ -59,12 +69,14 @@ end
 local function getSpellTextureSafe(spell)
   if not spell then return nil end
   if _G.GetSpellTexture then
-    local tex = _G.GetSpellTexture(spell)
-    if tex then return tex end
+    local ok, tex = pcall(_G.GetSpellTexture, spell)
+    if ok and tex then return tex end
   end
   if _G.GetSpellInfo then
-    local _, _, tex = _G.GetSpellInfo(spell)
-    return tex
+    local ok, _, _, tex = pcall(_G.GetSpellInfo, spell)
+    if ok then
+      return tex
+    end
   end
   return nil
 end
@@ -131,7 +143,20 @@ local function updateCastbar()
   local showIcon = isEnabled(db.castbarShowIcon, true)
   local showLag = isEnabled(db.castbarShowLag, true)
   local cast, texture, startTime, endTime, channel, delay, timesAreSeconds
-  cast, texture, startTime, endTime, channel, delay, timesAreSeconds = getPfUICastInfo()
+  if db.testMode == "1" then
+    local maxv = 2.0
+    local now = GetTime()
+    local cur = mod(now, maxv)
+    cast = "Test Cast"
+    texture = "Interface\\Icons\\INV_Misc_QuestionMark"
+    startTime = now - cur
+    endTime = startTime + maxv
+    channel = nil
+    delay = 0
+    timesAreSeconds = true
+  else
+    cast, texture, startTime, endTime, channel, delay, timesAreSeconds = getPfUICastInfo()
+  end
 
   local envCasting, envChannel = nil, nil
   if not cast and pfUI and pfUI.GetEnvironment then

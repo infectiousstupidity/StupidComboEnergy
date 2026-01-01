@@ -556,6 +556,13 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
   local menuframe = CreateFrame("Frame", newName("SCEMenu"), UIParent)
   menuframe:SetFrameStrata("MEDIUM")
   menuframe:SetFrameLevel(5)
+  menuframe:EnableMouse(true)
+  if menuframe.SetToplevel then
+    menuframe:SetToplevel(true)
+  end
+  if menuframe.SetClampedToScreen then
+    menuframe:SetClampedToScreen(true)
+  end
   menuframe.elements = {}
   menuframe:Hide()
   createSimpleBackdrop(menuframe)
@@ -592,6 +599,9 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
     menuframe:ClearAllPoints()
     menuframe:SetPoint("TOPLEFT", btn, "BOTTOMLEFT", 0, -2)
     menuframe:SetWidth(btn:GetWidth())
+    if menuframe.Raise then
+      menuframe:Raise()
+    end
     
     -- Clear old elements
     for _, elem in ipairs(menuframe.elements) do
@@ -606,6 +616,7 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
       if not entry then
         entry = CreateFrame("Button", nil, menuframe)
         entry:SetHeight(20)
+        entry:EnableMouse(true)
         entry:SetScript("OnEnter", function() this.hover:Show() end)
         entry:SetScript("OnLeave", function() this.hover:Hide() end)
         
@@ -1032,6 +1043,78 @@ local function showConfigPanel(name)
   end
 end
 
+local barOrderOptions = {
+  { value = "none", label = "None" },
+  { value = "health", label = "Health Bar" },
+  { value = "power", label = "Power Bar" },
+  { value = "druidmana", label = "Druid Mana Bar" },
+  { value = "combo", label = "Combo Points" },
+  { value = "castbar", label = "Castbar" },
+}
+
+local function getFallbackOrder(db)
+  if SCE.buildDefaultBarOrder then
+    return SCE.buildDefaultBarOrder(db)
+  end
+  return { "health", "druidmana", "power", "combo", "castbar" }
+end
+
+local function getBarOrderByKey(key)
+  local db = StupidComboEnergyDB or {}
+  if SCE.sanitizeBarOrder then
+    db[key] = SCE.sanitizeBarOrder(db[key], db, getFallbackOrder(db))
+  elseif type(db[key]) ~= "table" then
+    db[key] = getFallbackOrder(db)
+  end
+  return db[key] or {}
+end
+
+local function syncPowerFirstFromOrder(order)
+  local powerIndex, comboIndex
+  for i = 1, table.getn(order) do
+    local key = order[i]
+    if key == "power" then powerIndex = i end
+    if key == "combo" then comboIndex = i end
+  end
+  if powerIndex and comboIndex then
+    StupidComboEnergyDB.powerFirst = (powerIndex < comboIndex) and "1" or "0"
+  end
+end
+
+local function setBarOrderSlotForKey(key, index, value, syncPowerFirst)
+  local order = getBarOrderByKey(key)
+  if value == "none" then
+    order[index] = "none"
+    if syncPowerFirst then
+      syncPowerFirstFromOrder(order)
+    end
+    return
+  end
+  if order[index] == value then return end
+  local swapIndex
+  for i = 1, table.getn(order) do
+    if order[i] == value then
+      swapIndex = i
+      break
+    end
+  end
+  if swapIndex then
+    order[swapIndex] = order[index]
+  end
+  order[index] = value
+  if syncPowerFirst then
+    syncPowerFirstFromOrder(order)
+  end
+end
+
+local function getBarOrder()
+  return getBarOrderByKey("barOrder")
+end
+
+local function setBarOrderSlot(index, value)
+  setBarOrderSlotForKey("barOrder", index, value, true)
+end
+
 local function buildComboPanel(parent)
   local y = -20
   y = addBoolField(parent, "Enable Combo Bar", "showComboBar", y)
@@ -1069,6 +1152,7 @@ local function buildHealthPanel(parent)
     { value = "healthmiss", label = "Health - Missing" },
     { value = "healthminmax", label = "Health - Min/Max" },
     { value = "healthminmaxperc", label = "Health - Min/Max | Percent" },
+    { value = "shiftcasts", label = "Shift - Casts" },
   }
   local y = -20
   y = addBoolField(parent, "Enable Health Bar", "showHealthBar", y)
@@ -1108,6 +1192,7 @@ local function buildPowerPanel(parent)
     { value = "powerperc", label = "Mana - Percentage" },
     { value = "powermiss", label = "Mana - Missing" },
     { value = "powerminmax", label = "Mana - Min/Max" },
+    { value = "shiftcasts", label = "Shift - Casts" },
   }
   local energyTextOptions = {
     { value = "none", label = "Disable" },
@@ -1117,6 +1202,7 @@ local function buildPowerPanel(parent)
     { value = "powerperc", label = "Energy - Percentage" },
     { value = "powermiss", label = "Energy - Missing" },
     { value = "powerminmax", label = "Energy - Min/Max" },
+    { value = "shiftcasts", label = "Shift - Casts" },
   }
   local rageTextOptions = {
     { value = "none", label = "Disable" },
@@ -1126,11 +1212,27 @@ local function buildPowerPanel(parent)
     { value = "powerperc", label = "Rage - Percentage" },
     { value = "powermiss", label = "Rage - Missing" },
     { value = "powerminmax", label = "Rage - Min/Max" },
+    { value = "shiftcasts", label = "Shift - Casts" },
   }
   local y = -20
   y = addBoolField(parent, "Enable Power Bar", "showPowerBar", y)
   y = addBoolField(parent, "Grouped Layout", "grouped", y)
-  y = addBoolField(parent, "Power Above Combo", "powerFirst", y)
+  y = addBoolField(parent, "Power Above Combo", "powerFirst", y, function()
+    local order = getBarOrder()
+    local powerIndex, comboIndex
+    for i = 1, table.getn(order) do
+      local key = order[i]
+      if key == "power" then powerIndex = i end
+      if key == "combo" then comboIndex = i end
+    end
+    if powerIndex and comboIndex then
+      if StupidComboEnergyDB.powerFirst == "1" and powerIndex > comboIndex then
+        order[powerIndex], order[comboIndex] = order[comboIndex], order[powerIndex]
+      elseif StupidComboEnergyDB.powerFirst == "0" and powerIndex < comboIndex then
+        order[powerIndex], order[comboIndex] = order[comboIndex], order[powerIndex]
+      end
+    end
+  end)
   y = addNumberField(parent, "Group Gap", function() return StupidComboEnergyDB.gap end, function(v) StupidComboEnergyDB.gap = v end, y)
   y = addBoolField(parent, "Gap Line Between Power + Combo", "groupGapLine", y)
   y = addNumberField(parent, "Gap Line Size (0 = auto)", function() return StupidComboEnergyDB.groupGapLineSize end, function(v) StupidComboEnergyDB.groupGapLineSize = v end, y)
@@ -1193,6 +1295,7 @@ local function buildDruidManaPanel(parent)
     { value = "powerperc", label = "Mana - Percentage" },
     { value = "powermiss", label = "Mana - Missing" },
     { value = "powerminmax", label = "Mana - Min/Max" },
+    { value = "shiftcasts", label = "Shift - Casts" },
   }
   local y = -20
   y = addBoolField(parent, "Enable Druid Mana Bar", "showDruidManaBar", y)
@@ -1231,6 +1334,10 @@ local function buildShiftIndicatorPanel(parent)
     { value = "powerdruid", label = "Power + Druid Mana" },
     { value = "healthpowerdruid", label = "Health + Power + Druid Mana" },
   }
+  local attachModeOptions = {
+    { value = "fixed", label = "Fixed" },
+    { value = "power", label = "By Power Type" },
+  }
   local anchorOptions = {
     { value = "LEFT", label = "Left" },
     { value = "RIGHT", label = "Right" },
@@ -1243,7 +1350,11 @@ local function buildShiftIndicatorPanel(parent)
   }
   local y = -20
   y = addBoolField(parent, "Enable Shift Indicator", "showShiftIndicator", y)
-  y = addCycleField(parent, "Attach To", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttach end, function(v) StupidComboEnergyDB.shiftIndicatorAttach = v end, y)
+  y = addCycleField(parent, "Attach Mode", attachModeOptions, function() return StupidComboEnergyDB.shiftIndicatorAttachMode end, function(v) StupidComboEnergyDB.shiftIndicatorAttachMode = v end, y)
+  y = addCycleField(parent, "Attach To (Fixed)", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttach end, function(v) StupidComboEnergyDB.shiftIndicatorAttach = v end, y)
+  y = addCycleField(parent, "Attach To (Mana)", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttachMana end, function(v) StupidComboEnergyDB.shiftIndicatorAttachMana = v end, y)
+  y = addCycleField(parent, "Attach To (Energy)", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttachEnergy end, function(v) StupidComboEnergyDB.shiftIndicatorAttachEnergy = v end, y)
+  y = addCycleField(parent, "Attach To (Rage)", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttachRage end, function(v) StupidComboEnergyDB.shiftIndicatorAttachRage = v end, y)
   y = addCycleField(parent, "Anchor Side", anchorOptions, function() return StupidComboEnergyDB.shiftIndicatorAnchor end, function(v) StupidComboEnergyDB.shiftIndicatorAnchor = v end, y)
   y = addNumberField(parent, "Size (0 = Auto)", function() return StupidComboEnergyDB.shiftIndicatorSize end, function(v) StupidComboEnergyDB.shiftIndicatorSize = v end, y)
   y = addNumberField(parent, "Spacing", function() return StupidComboEnergyDB.shiftIndicatorSpacing end, function(v) StupidComboEnergyDB.shiftIndicatorSpacing = v end, y)
@@ -1291,13 +1402,59 @@ local function buildCastbarPanel(parent)
   return y
 end
 
-local function buildSettingsPanel(parent)
+local function buildGeneralPanel(parent)
   local y = -20
+  y = addBoolField(parent, "Enable Health Bar", "showHealthBar", y)
+  y = addBoolField(parent, "Enable Power Bar", "showPowerBar", y)
+  y = addBoolField(parent, "Enable Druid Mana Bar", "showDruidManaBar", y)
+  y = addBoolField(parent, "Enable Combo Bar", "showComboBar", y)
+  y = addBoolField(parent, "Enable Castbar", "showCastbar", y)
+  y = addBoolField(parent, "Enable Shift Indicator", "showShiftIndicator", y)
   y = addBoolField(parent, "Enable Debug Logs", "debugEnabled", y, function()
     if SCE.applyDebugSetting then
       SCE.applyDebugSetting()
     end
   end)
+  y = addBoolField(parent, "Test Mode (Show All Bars)", "testMode", y)
+  y = y - 10
+  y = addCycleField(parent, "Grouped Order Mode", {
+    { value = "fixed", label = "Fixed" },
+    { value = "power", label = "By Power Type" },
+  }, function() return StupidComboEnergyDB.barOrderMode end, function(v) StupidComboEnergyDB.barOrderMode = v end, y)
+  y = addCycleField(parent, "Group Anchor", {
+    { value = "TOP", label = "Top (Grow Down)" },
+    { value = "CENTER", label = "Center" },
+    { value = "BOTTOM", label = "Bottom (Grow Up)" },
+  }, function() return StupidComboEnergyDB.groupAnchor end, function(v) StupidComboEnergyDB.groupAnchor = v end, y)
+  y = addNumberField(parent, "Group Position X", function() return StupidComboEnergyDB.x end, function(v) StupidComboEnergyDB.x = v end, y)
+  y = addNumberField(parent, "Group Position Y", function() return StupidComboEnergyDB.y end, function(v) StupidComboEnergyDB.y = v end, y)
+
+  y = addCycleField(parent, "Top Bar (Fixed)", barOrderOptions, function() return getBarOrderByKey("barOrder")[1] end, function(v) setBarOrderSlotForKey("barOrder", 1, v, true); refreshConfig() end, y)
+  y = addCycleField(parent, "2nd Bar (Fixed)", barOrderOptions, function() return getBarOrderByKey("barOrder")[2] end, function(v) setBarOrderSlotForKey("barOrder", 2, v, true); refreshConfig() end, y)
+  y = addCycleField(parent, "3rd Bar (Fixed)", barOrderOptions, function() return getBarOrderByKey("barOrder")[3] end, function(v) setBarOrderSlotForKey("barOrder", 3, v, true); refreshConfig() end, y)
+  y = addCycleField(parent, "4th Bar (Fixed)", barOrderOptions, function() return getBarOrderByKey("barOrder")[4] end, function(v) setBarOrderSlotForKey("barOrder", 4, v, true); refreshConfig() end, y)
+  y = addCycleField(parent, "Bottom Bar (Fixed)", barOrderOptions, function() return getBarOrderByKey("barOrder")[5] end, function(v) setBarOrderSlotForKey("barOrder", 5, v, true); refreshConfig() end, y)
+
+  y = y - 6
+  y = addCycleField(parent, "Top Bar (Mana)", barOrderOptions, function() return getBarOrderByKey("barOrderMana")[1] end, function(v) setBarOrderSlotForKey("barOrderMana", 1, v); refreshConfig() end, y)
+  y = addCycleField(parent, "2nd Bar (Mana)", barOrderOptions, function() return getBarOrderByKey("barOrderMana")[2] end, function(v) setBarOrderSlotForKey("barOrderMana", 2, v); refreshConfig() end, y)
+  y = addCycleField(parent, "3rd Bar (Mana)", barOrderOptions, function() return getBarOrderByKey("barOrderMana")[3] end, function(v) setBarOrderSlotForKey("barOrderMana", 3, v); refreshConfig() end, y)
+  y = addCycleField(parent, "4th Bar (Mana)", barOrderOptions, function() return getBarOrderByKey("barOrderMana")[4] end, function(v) setBarOrderSlotForKey("barOrderMana", 4, v); refreshConfig() end, y)
+  y = addCycleField(parent, "Bottom Bar (Mana)", barOrderOptions, function() return getBarOrderByKey("barOrderMana")[5] end, function(v) setBarOrderSlotForKey("barOrderMana", 5, v); refreshConfig() end, y)
+
+  y = y - 6
+  y = addCycleField(parent, "Top Bar (Energy)", barOrderOptions, function() return getBarOrderByKey("barOrderEnergy")[1] end, function(v) setBarOrderSlotForKey("barOrderEnergy", 1, v); refreshConfig() end, y)
+  y = addCycleField(parent, "2nd Bar (Energy)", barOrderOptions, function() return getBarOrderByKey("barOrderEnergy")[2] end, function(v) setBarOrderSlotForKey("barOrderEnergy", 2, v); refreshConfig() end, y)
+  y = addCycleField(parent, "3rd Bar (Energy)", barOrderOptions, function() return getBarOrderByKey("barOrderEnergy")[3] end, function(v) setBarOrderSlotForKey("barOrderEnergy", 3, v); refreshConfig() end, y)
+  y = addCycleField(parent, "4th Bar (Energy)", barOrderOptions, function() return getBarOrderByKey("barOrderEnergy")[4] end, function(v) setBarOrderSlotForKey("barOrderEnergy", 4, v); refreshConfig() end, y)
+  y = addCycleField(parent, "Bottom Bar (Energy)", barOrderOptions, function() return getBarOrderByKey("barOrderEnergy")[5] end, function(v) setBarOrderSlotForKey("barOrderEnergy", 5, v); refreshConfig() end, y)
+
+  y = y - 6
+  y = addCycleField(parent, "Top Bar (Rage)", barOrderOptions, function() return getBarOrderByKey("barOrderRage")[1] end, function(v) setBarOrderSlotForKey("barOrderRage", 1, v); refreshConfig() end, y)
+  y = addCycleField(parent, "2nd Bar (Rage)", barOrderOptions, function() return getBarOrderByKey("barOrderRage")[2] end, function(v) setBarOrderSlotForKey("barOrderRage", 2, v); refreshConfig() end, y)
+  y = addCycleField(parent, "3rd Bar (Rage)", barOrderOptions, function() return getBarOrderByKey("barOrderRage")[3] end, function(v) setBarOrderSlotForKey("barOrderRage", 3, v); refreshConfig() end, y)
+  y = addCycleField(parent, "4th Bar (Rage)", barOrderOptions, function() return getBarOrderByKey("barOrderRage")[4] end, function(v) setBarOrderSlotForKey("barOrderRage", 4, v); refreshConfig() end, y)
+  y = addCycleField(parent, "Bottom Bar (Rage)", barOrderOptions, function() return getBarOrderByKey("barOrderRage")[5] end, function(v) setBarOrderSlotForKey("barOrderRage", 5, v); refreshConfig() end, y)
   return y
 end
 
@@ -1636,7 +1793,7 @@ local function buildConfigFrame()
   end
 
   addMenuButton("About", "about", buildAboutPanel, 1)
-  addMenuButton("Settings", "settings", buildSettingsPanel, 2)
+  addMenuButton("General", "general", buildGeneralPanel, 2)
   addMenuButton("Health Bar", "health", buildHealthPanel, 3)
   addMenuButton("Power Bar", "power", buildPowerPanel, 4)
   addMenuButton("Druid Mana", "druidmana", buildDruidManaPanel, 5)
@@ -1676,7 +1833,6 @@ function SCE.clearReloadNeeded()
 end
 SCE.buildConfigFrame = buildConfigFrame
 SCE.toggleConfig = toggleConfig
-
 if SCE.debugMsg then
   SCE.debugMsg("Loaded module: gui.lua")
 end

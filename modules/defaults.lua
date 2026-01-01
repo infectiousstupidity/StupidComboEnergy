@@ -47,6 +47,8 @@ SCE.defaults = {
   -- Positioning mode (use "1"/"0" strings for Vanilla compatibility)
   grouped = "1",
   powerFirst = "1",
+  groupAnchor = "CENTER",
+  barOrderMode = "fixed",
   groupGapLine = "0",
   groupGapLineSize = 0, -- 0 = auto (use gap)
   groupGapLineColor = { 0.00, 0.00, 0.00, 1.0 },
@@ -207,6 +209,7 @@ SCE.defaults = {
   showOnlyActiveCombo = "0",
   showWhenNotPower = "1",
   notPowerAlpha = 0.35,
+  testMode = "0",
   
   showPowerTicker = "0",
   powerTickerColor = { 1.0, 1.0, 1.0, 0.8 },
@@ -226,6 +229,10 @@ SCE.defaults = {
   locked = "1",
 
   shiftIndicatorAttach = "power",
+  shiftIndicatorAttachMode = "fixed",
+  shiftIndicatorAttachMana = "power",
+  shiftIndicatorAttachEnergy = "power",
+  shiftIndicatorAttachRage = "power",
   shiftIndicatorAnchor = "LEFT",
   shiftIndicatorSpacing = 2,
   shiftIndicatorOffsetX = 0,
@@ -309,6 +316,98 @@ end
 
 function SCE.copyColor(c)
   return { c[1], c[2], c[3], c[4] }
+end
+
+function SCE.buildDefaultBarOrder(db)
+  local order = { "health", "druidmana" }
+  if db and db.powerFirst == "0" then
+    table.insert(order, "combo")
+    table.insert(order, "power")
+  else
+    table.insert(order, "power")
+    table.insert(order, "combo")
+  end
+  table.insert(order, "castbar")
+  return order
+end
+
+function SCE.sanitizeBarOrder(order, db, fallback)
+  local result = {}
+  local seen = {}
+  local hasNone = false
+  if type(order) == "table" then
+    for i = 1, table.getn(order) do
+      local key = order[i]
+      if key == "none" then
+        table.insert(result, "none")
+        hasNone = true
+      elseif key == "health" or key == "power" or key == "druidmana" or key == "combo" or key == "castbar" then
+        if not seen[key] then
+          seen[key] = true
+          table.insert(result, key)
+        else
+          table.insert(result, "none")
+          hasNone = true
+        end
+      end
+    end
+  end
+
+  if table.getn(result) < 5 then
+    local fill = fallback
+    if not fill and not hasNone then
+      fill = SCE.buildDefaultBarOrder(db)
+    end
+    if fill then
+      for i = 1, table.getn(fill) do
+        local key = fill[i]
+        if table.getn(result) >= 5 then break end
+        if key and key ~= "none" and not seen[key] then
+          seen[key] = true
+          table.insert(result, key)
+        end
+      end
+    end
+  end
+
+  while table.getn(result) < 5 do
+    table.insert(result, "none")
+  end
+  while table.getn(result) > 5 do
+    table.remove(result)
+  end
+
+  return result
+end
+
+function SCE.usesShiftText(db)
+  db = db or StupidComboEnergyDB or {}
+  local function isShift(mode)
+    return mode == "shiftcasts"
+  end
+
+  if isShift(db.healthTextLeft) or isShift(db.healthTextCenter) or isShift(db.healthTextRight) then return true end
+  if isShift(db.powerTextLeft) or isShift(db.powerTextCenter) or isShift(db.powerTextRight) then return true end
+  if isShift(db.powerTextLeftMana) or isShift(db.powerTextCenterMana) or isShift(db.powerTextRightMana) then return true end
+  if isShift(db.powerTextLeftEnergy) or isShift(db.powerTextCenterEnergy) or isShift(db.powerTextRightEnergy) then return true end
+  if isShift(db.powerTextLeftRage) or isShift(db.powerTextCenterRage) or isShift(db.powerTextRightRage) then return true end
+  if isShift(db.druidManaTextLeft) or isShift(db.druidManaTextCenter) or isShift(db.druidManaTextRight) then return true end
+  return false
+end
+
+function SCE.getShiftCastsText(db)
+  db = db or StupidComboEnergyDB or {}
+  if UnitClass then
+    local _, class = UnitClass("player")
+    if class and class ~= "DRUID" then
+      return ""
+    end
+  end
+  local casts = tonumber(SCE.shiftCasts) or 0
+  if casts <= 0 and db.shiftIndicatorShowZero ~= "1" then
+    return ""
+  end
+  return tostring(casts)
 end
 
 function SCE.applyDebugSetting()
@@ -493,6 +592,63 @@ function SCE.ensureDB()
     end
     StupidComboEnergyDB._shiftIndicatorBorderMigrated = "1"
   end
+
+  if type(StupidComboEnergyDB.barOrder) ~= "table" then
+    if SCE.buildDefaultBarOrder then
+      StupidComboEnergyDB.barOrder = SCE.buildDefaultBarOrder(StupidComboEnergyDB)
+    else
+      StupidComboEnergyDB.barOrder = { "health", "druidmana", "power", "combo", "castbar" }
+    end
+  elseif SCE.sanitizeBarOrder then
+    StupidComboEnergyDB.barOrder = SCE.sanitizeBarOrder(StupidComboEnergyDB.barOrder, StupidComboEnergyDB)
+  end
+
+  if type(StupidComboEnergyDB.barOrder) == "table" then
+    local powerIndex, comboIndex
+    for i = 1, table.getn(StupidComboEnergyDB.barOrder) do
+      local key = StupidComboEnergyDB.barOrder[i]
+      if key == "power" then powerIndex = i end
+      if key == "combo" then comboIndex = i end
+    end
+    if powerIndex and comboIndex then
+      StupidComboEnergyDB.powerFirst = (powerIndex < comboIndex) and "1" or "0"
+    end
+  end
+
+  if StupidComboEnergyDB.barOrderMode == nil then
+    StupidComboEnergyDB.barOrderMode = "fixed"
+  end
+  if StupidComboEnergyDB.groupAnchor ~= "TOP" and StupidComboEnergyDB.groupAnchor ~= "BOTTOM" and StupidComboEnergyDB.groupAnchor ~= "CENTER" then
+    StupidComboEnergyDB.groupAnchor = "CENTER"
+  end
+  if StupidComboEnergyDB.shiftIndicatorAttachMode ~= "fixed" and StupidComboEnergyDB.shiftIndicatorAttachMode ~= "power" then
+    StupidComboEnergyDB.shiftIndicatorAttachMode = "fixed"
+  end
+  if StupidComboEnergyDB.shiftIndicatorAttachMana == nil then
+    StupidComboEnergyDB.shiftIndicatorAttachMana = StupidComboEnergyDB.shiftIndicatorAttach or "power"
+  end
+  if StupidComboEnergyDB.shiftIndicatorAttachEnergy == nil then
+    StupidComboEnergyDB.shiftIndicatorAttachEnergy = StupidComboEnergyDB.shiftIndicatorAttach or "power"
+  end
+  if StupidComboEnergyDB.shiftIndicatorAttachRage == nil then
+    StupidComboEnergyDB.shiftIndicatorAttachRage = StupidComboEnergyDB.shiftIndicatorAttach or "power"
+  end
+
+  local function ensureOrderList(key, fallback)
+    if type(StupidComboEnergyDB[key]) ~= "table" then
+      StupidComboEnergyDB[key] = SCE.sanitizeBarOrder and SCE.sanitizeBarOrder(fallback, StupidComboEnergyDB, fallback) or fallback
+    elseif SCE.sanitizeBarOrder then
+      StupidComboEnergyDB[key] = SCE.sanitizeBarOrder(StupidComboEnergyDB[key], StupidComboEnergyDB, fallback)
+    end
+  end
+
+  local baseOrder = StupidComboEnergyDB.barOrder
+  if type(baseOrder) ~= "table" then
+    baseOrder = SCE.buildDefaultBarOrder and SCE.buildDefaultBarOrder(StupidComboEnergyDB) or { "health", "druidmana", "power", "combo", "castbar" }
+  end
+  ensureOrderList("barOrderMana", baseOrder)
+  ensureOrderList("barOrderEnergy", baseOrder)
+  ensureOrderList("barOrderRage", baseOrder)
 
   if StupidComboEnergyDB.frameStrata ~= "MEDIUM" then
     StupidComboEnergyDB.frameStrata = "MEDIUM"

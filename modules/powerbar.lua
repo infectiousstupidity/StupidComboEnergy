@@ -58,6 +58,11 @@ local function formatPowerText(mode, cur, maxv, forceMana)
     return abbreviate(miss)
   elseif mode == "powerminmax" or mode == "minmax" then
     return curText .. " / " .. maxText
+  elseif mode == "shiftcasts" then
+    if SCE.getShiftCastsText then
+      return SCE.getShiftCastsText()
+    end
+    return ""
   end
   return curText
 end

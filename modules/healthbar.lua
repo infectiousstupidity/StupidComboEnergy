@@ -83,6 +83,11 @@ local function formatHealthValue(mode, cur, maxv, dead)
     return curText .. " / " .. maxText
   elseif mode == "healthminmaxperc" then
     return curText .. " / " .. maxText .. " (" .. pct .. "%)"
+  elseif mode == "shiftcasts" then
+    if SCE.getShiftCastsText then
+      return SCE.getShiftCastsText()
+    end
+    return ""
   end
 
   return ""

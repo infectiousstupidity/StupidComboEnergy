@@ -118,11 +118,24 @@ local function getPowerType()
   return nil, nil
 end
 
+local getBarOrder
+
 local function isEnabled(val, defaultOn)
   if val == nil then
     return defaultOn and true or false
   end
   return val == "1" or val == 1 or val == true
+end
+
+local function isInOrder(db, key)
+  if not db or db.grouped ~= "1" then return true end
+  local order = getBarOrder(db)
+  for i = 1, table.getn(order) do
+    if order[i] == key then
+      return true
+    end
+  end
+  return false
 end
 
 local function isEnergy()
@@ -154,65 +167,270 @@ end
 local function shouldShowCombo(db)
   db = db or StupidComboEnergyDB or {}
   if db.showComboBar == "0" then return false end
+  if db.testMode == "1" then return isInOrder(db, "combo") end
+  local canShow = false
   if UnitClass then
     local _, class = UnitClass("player")
-    if class == "ROGUE" then return true end
-    if class == "DRUID" then return isEnergy() end
+    if class == "ROGUE" then
+      canShow = true
+    elseif class == "DRUID" then
+      canShow = isEnergy()
+    end
   end
-  return false
+  if not canShow then return false end
+  return isInOrder(db, "combo")
 end
 
 local function shouldShowHealth(db)
   db = db or StupidComboEnergyDB or {}
-  return db.showHealthBar == "1"
+  if db.showHealthBar ~= "1" then return false end
+  if db.testMode == "1" then return isInOrder(db, "health") end
+  return isInOrder(db, "health")
 end
 
 local function shouldShowPower(db)
   db = db or StupidComboEnergyDB or {}
   if db.showPowerBar == "0" then return false end
-  if isMana() or isEnergy() or isRage() then return true end
-  return (db.showWhenNotPower or db.showWhenNotEnergy) == "1"
+  if db.testMode == "1" then return isInOrder(db, "power") end
+  if isMana() or isEnergy() or isRage() then return isInOrder(db, "power") end
+  if (db.showWhenNotPower or db.showWhenNotEnergy) == "1" then
+    return isInOrder(db, "power")
+  end
+  return false
 end
 
 local function shouldShowDruidMana(db)
   db = db or StupidComboEnergyDB or {}
   if db.showDruidManaBar ~= "1" then return false end
+  if db.testMode == "1" then return isInOrder(db, "druidmana") end
   if UnitClass then
     local _, class = UnitClass("player")
-    return class == "DRUID" and not isMana()
+    if class == "DRUID" and not isMana() then
+      return isInOrder(db, "druidmana")
+    end
   end
   return false
 end
 
 local function shouldShowCastbar(db)
   db = db or StupidComboEnergyDB or {}
-  return db.showCastbar == "1"
+  if db.showCastbar ~= "1" then return false end
+  if db.testMode == "1" then return isInOrder(db, "castbar") end
+  return isInOrder(db, "castbar")
+end
+
+local function getDefaultBarOrder(db)
+  if SCE.buildDefaultBarOrder then
+    return SCE.buildDefaultBarOrder(db)
+  end
+  local order = { "health", "druidmana" }
+  if db and db.powerFirst == "0" then
+    table.insert(order, "combo")
+    table.insert(order, "power")
+  else
+    table.insert(order, "power")
+    table.insert(order, "combo")
+  end
+  table.insert(order, "castbar")
+  return order
+end
+
+local function sanitizeBarOrderLocal(order, db)
+  if SCE.sanitizeBarOrder then
+    return SCE.sanitizeBarOrder(order, db, getDefaultBarOrder(db))
+  end
+  local result = {}
+  local seen = {}
+  if type(order) == "table" then
+    for i = 1, table.getn(order) do
+      local key = order[i]
+      if key == "none" then
+        table.insert(result, "none")
+      elseif key == "health" or key == "power" or key == "druidmana" or key == "combo" or key == "castbar" then
+        if not seen[key] then
+          seen[key] = true
+          table.insert(result, key)
+        end
+      end
+    end
+  end
+  local fallback = getDefaultBarOrder(db)
+  for i = 1, table.getn(fallback) do
+    if table.getn(result) >= 5 then break end
+    local key = fallback[i]
+    if not seen[key] then
+      seen[key] = true
+      table.insert(result, key)
+    end
+  end
+  while table.getn(result) < 5 do
+    table.insert(result, "none")
+  end
+  return result
+end
+
+getBarOrder = function(db)
+  db = db or StupidComboEnergyDB or {}
+  local mode = db.barOrderMode or "fixed"
+  local order = db.barOrder
+  if mode == "power" then
+    if isMana() then
+      order = db.barOrderMana or order
+    elseif isRage() then
+      order = db.barOrderRage or order
+    else
+      order = db.barOrderEnergy or order
+    end
+  end
+  return sanitizeBarOrderLocal(order, db)
+end
+
+local function buildVisibleOrder(order, showHealth, showPower, showDruidMana, showCombo, showCastbar)
+  local visible = {}
+  for i = 1, table.getn(order) do
+    local key = order[i]
+    if key ~= "none" then
+      if key == "health" and showHealth then
+        table.insert(visible, key)
+      elseif key == "power" and showPower then
+        table.insert(visible, key)
+      elseif key == "druidmana" and showDruidMana then
+        table.insert(visible, key)
+      elseif key == "combo" and showCombo then
+        table.insert(visible, key)
+      elseif key == "castbar" and showCastbar then
+        table.insert(visible, key)
+      end
+    end
+  end
+  return visible
+end
+
+local function getShiftAttachList(attach)
+  if attach == "health" then
+    return { "health" }
+  elseif attach == "power" then
+    return { "power" }
+  elseif attach == "druidmana" then
+    return { "druidmana" }
+  elseif attach == "healthpower" then
+    return { "health", "power" }
+  elseif attach == "healthdruid" then
+    return { "health", "druidmana" }
+  elseif attach == "powerdruid" then
+    return { "power", "druidmana" }
+  elseif attach == "healthpowerdruid" then
+    return { "health", "power", "druidmana" }
+  end
+  return { "power" }
+end
+
+local function getShiftAttachSetting(db)
+  db = db or StupidComboEnergyDB or {}
+  local mode = db.shiftIndicatorAttachMode or "fixed"
+  if mode == "power" then
+    if isMana() then
+      return db.shiftIndicatorAttachMana or db.shiftIndicatorAttach or "power"
+    elseif isRage() then
+      return db.shiftIndicatorAttachRage or db.shiftIndicatorAttach or "power"
+    end
+    return db.shiftIndicatorAttachEnergy or db.shiftIndicatorAttach or "power"
+  end
+  return db.shiftIndicatorAttach or "power"
+end
+
+local function buildIndexMap(order)
+  local map = {}
+  for i = 1, table.getn(order) do
+    map[order[i]] = i
+  end
+  return map
+end
+
+local function pickTop(list, orderIndex)
+  local best, bestIndex
+  for i = 1, table.getn(list) do
+    local key = list[i]
+    local idx = orderIndex[key]
+    if idx and (not bestIndex or idx < bestIndex) then
+      best = key
+      bestIndex = idx
+    end
+  end
+  return best or list[1]
+end
+
+local function isAdjacent(list, orderIndex)
+  local minIndex, maxIndex
+  for i = 1, table.getn(list) do
+    local idx = orderIndex[list[i]]
+    if not idx then return false end
+    if not minIndex or idx < minIndex then minIndex = idx end
+    if not maxIndex or idx > maxIndex then maxIndex = idx end
+  end
+  if not minIndex then return false end
+  return (maxIndex - minIndex + 1) == table.getn(list)
+end
+
+local function resolveShiftAttach(db, order, showHealth, showPower, showDruidMana, showCombo, showCastbar)
+  local requested = getShiftAttachList(getShiftAttachSetting(db))
+  local visibleOrder = buildVisibleOrder(order, showHealth, showPower, showDruidMana, showCombo, showCastbar)
+  local orderIndex = buildIndexMap(visibleOrder)
+  local selectedVisible = {}
+  local selectedSet = {}
+
+  for i = 1, table.getn(requested) do
+    local key = requested[i]
+    if (key == "health" and showHealth)
+      or (key == "power" and showPower)
+      or (key == "druidmana" and showDruidMana) then
+      table.insert(selectedVisible, key)
+      selectedSet[key] = true
+    end
+  end
+
+  if table.getn(selectedVisible) == 0 then
+    return { list = {}, set = {}, anchor = nil, count = 0, order = visibleOrder }
+  end
+
+  local effective = selectedVisible
+  local effectiveSet = selectedSet
+  if table.getn(selectedVisible) > 1 then
+    local grouped = (db.grouped == "1")
+    local adjacent = grouped and isAdjacent(selectedVisible, orderIndex)
+    if not grouped or not adjacent then
+      local anchor = pickTop(selectedVisible, orderIndex)
+      effective = { anchor }
+      effectiveSet = { [anchor] = true }
+    end
+  end
+
+  local anchor = pickTop(effective, orderIndex)
+  return { list = effective, set = effectiveSet, anchor = anchor, count = table.getn(effective), order = visibleOrder }
+end
+
+local function getShiftAttachInfo(db)
+  db = db or StupidComboEnergyDB or {}
+  local showHealth = shouldShowHealth(db)
+  local showPower = shouldShowPower(db)
+  local showDruidMana = shouldShowDruidMana(db)
+  local showCombo = shouldShowCombo(db)
+  local showCastbar = shouldShowCastbar(db)
+  local order = getBarOrder(db)
+  return resolveShiftAttach(db, order, showHealth, showPower, showDruidMana, showCombo, showCastbar)
 end
 
 local function shouldShowShiftIndicator(db)
   db = db or StupidComboEnergyDB or {}
   if db.showShiftIndicator ~= "1" then return false end
-  if UnitClass then
-    local _, class = UnitClass("player")
-    if class ~= "DRUID" then return false end
+  if db.testMode ~= "1" then
+    if UnitClass then
+      local _, class = UnitClass("player")
+      if class ~= "DRUID" then return false end
+    end
   end
-  local attach = db.shiftIndicatorAttach or "power"
-  if attach == "health" then
-    return shouldShowHealth(db)
-  elseif attach == "power" then
-    return shouldShowPower(db)
-  elseif attach == "druidmana" then
-    return shouldShowDruidMana(db)
-  elseif attach == "healthpower" then
-    return shouldShowHealth(db) or shouldShowPower(db)
-  elseif attach == "healthdruid" then
-    return shouldShowHealth(db) or shouldShowDruidMana(db)
-  elseif attach == "powerdruid" then
-    return shouldShowPower(db) or shouldShowDruidMana(db)
-  elseif attach == "healthpowerdruid" then
-    return shouldShowHealth(db) or shouldShowPower(db) or shouldShowDruidMana(db)
-  end
-  return shouldShowPower(db)
+  local info = getShiftAttachInfo(db)
+  return info and info.count and info.count > 0
 end
 
 local function getPowerPalette(db)
@@ -293,6 +511,7 @@ local ShiftIndicator = CreateFrame("Frame", nil, UI)
 ShiftIndicator.icon = ShiftIndicator:CreateTexture(nil, "BACKGROUND")
 ShiftIndicator.icon:SetAllPoints()
 ShiftIndicator.text = ShiftIndicator:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+ShiftIndicator:RegisterForDrag("LeftButton")
 
 local CP = CreateFrame("Frame", nil, UI)
 CP.segs = {}
@@ -351,6 +570,7 @@ SCE.shouldShowPower = shouldShowPower
 SCE.shouldShowDruidMana = shouldShowDruidMana
 SCE.shouldShowCastbar = shouldShowCastbar
 SCE.shouldShowShiftIndicator = shouldShowShiftIndicator
+SCE.getShiftAttachInfo = getShiftAttachInfo
 SCE.getPowerPalette = getPowerPalette
 
 local function layout()
@@ -376,7 +596,6 @@ local function layout()
   local healthWidthTotal = 0
   local powerWidthTotal = 0
   local druidManaWidthTotal = 0
-  local shiftAttach = db.shiftIndicatorAttach or "power"
   local shiftAnchor = db.shiftIndicatorAnchor or "LEFT"
   local shiftSpacing = db.shiftIndicatorSpacing or 0
   local shiftSize = db.shiftIndicatorSize or 0
@@ -432,16 +651,25 @@ local function layout()
   local showPower = shouldShowPower(db)
   local showDruidMana = shouldShowDruidMana(db)
   local showCastbar = shouldShowCastbar(db)
-  local showShiftIndicator = shouldShowShiftIndicator(db)
   local baseLevel = clampFrameLevel(db.frameLevel)
 
-  local attachHealth = (shiftAttach == "health" or shiftAttach == "healthpower" or shiftAttach == "healthdruid" or shiftAttach == "healthpowerdruid")
-  local attachPower = (shiftAttach == "power" or shiftAttach == "healthpower" or shiftAttach == "powerdruid" or shiftAttach == "healthpowerdruid")
-  local attachDruid = (shiftAttach == "druidmana" or shiftAttach == "healthdruid" or shiftAttach == "powerdruid" or shiftAttach == "healthpowerdruid")
-  local attachCount = 0
-  if attachHealth and showHealth then attachCount = attachCount + 1 end
-  if attachPower and showPower then attachCount = attachCount + 1 end
-  if attachDruid and showDruidMana then attachCount = attachCount + 1 end
+  local order = getBarOrder(db)
+  local attachInfo = resolveShiftAttach(db, order, showHealth, showPower, showDruidMana, showCombo, showCastbar)
+  local showShiftIndicator = db.showShiftIndicator == "1"
+  if showShiftIndicator and UnitClass then
+    local _, class = UnitClass("player")
+    if class ~= "DRUID" then
+      showShiftIndicator = false
+    end
+  end
+  if showShiftIndicator then
+    showShiftIndicator = attachInfo and attachInfo.count and attachInfo.count > 0
+  end
+  local attachSet = (attachInfo and attachInfo.set) or {}
+  local attachCount = (showShiftIndicator and attachInfo and attachInfo.count) or 0
+  local attachHealth = showShiftIndicator and attachSet.health
+  local attachPower = showShiftIndicator and attachSet.power
+  local attachDruid = showShiftIndicator and attachSet.druidmana
 
   healthWidthTotal = healthWidth
   powerWidthTotal = powerWidth
@@ -588,35 +816,20 @@ local function layout()
       end
     end
 
-    if showHealth then addItem("health", Health, healthHeight) end
-    if showDruidMana then addItem("druidmana", DruidMana, druidManaHeight) end
-
-    if showPower and showCombo then
-      if db.powerFirst == "1" then
+    for i = 1, table.getn(order) do
+      local key = order[i]
+      if key == "health" and showHealth then
+        addItem("health", Health, healthHeight)
+      elseif key == "power" and showPower then
         addItem("power", Power, powerHeight)
+      elseif key == "druidmana" and showDruidMana then
+        addItem("druidmana", DruidMana, druidManaHeight)
+      elseif key == "combo" and showCombo then
         addItem("combo", CP, cpHeight)
-        if Power.SetFrameLevel and CP.SetFrameLevel then
-          local high = math.min(baseLevel + 2, 5)
-          local mid = math.min(baseLevel + 1, 5)
-          Power:SetFrameLevel(high)
-          CP:SetFrameLevel(mid)
-        end
-      else
-        addItem("combo", CP, cpHeight)
-        addItem("power", Power, powerHeight)
-        if Power.SetFrameLevel and CP.SetFrameLevel then
-          local high = math.min(baseLevel + 2, 5)
-          local mid = math.min(baseLevel + 1, 5)
-          CP:SetFrameLevel(high)
-          Power:SetFrameLevel(mid)
-        end
+      elseif key == "castbar" and showCastbar then
+        addItem("castbar", Castbar, castbarHeight)
       end
-    else
-      if showPower then addItem("power", Power, powerHeight) end
-      if showCombo then addItem("combo", CP, cpHeight) end
     end
-
-    if showCastbar then addItem("castbar", Castbar, castbarHeight) end
 
     local totalHeight = 0
     local powerIndex, comboIndex
@@ -637,7 +850,26 @@ local function layout()
     end
     SCE.powerComboAdjacent = powerComboAdjacent
 
-    local currentTop = mainY + totalHeight / 2
+    if powerIndex and comboIndex and Power.SetFrameLevel and CP.SetFrameLevel then
+      local high = math.min(baseLevel + 2, 5)
+      local mid = math.min(baseLevel + 1, 5)
+      if powerIndex < comboIndex then
+        Power:SetFrameLevel(high)
+        CP:SetFrameLevel(mid)
+      else
+        CP:SetFrameLevel(high)
+        Power:SetFrameLevel(mid)
+      end
+    end
+
+    local anchor = db.groupAnchor or "CENTER"
+    local topY = mainY + totalHeight / 2
+    if anchor == "TOP" then
+      topY = mainY
+    elseif anchor == "BOTTOM" then
+      topY = mainY + totalHeight
+    end
+    local currentTop = topY
     for i = 1, table.getn(items) do
       local entry = items[i]
       local centerY = currentTop - entry.height / 2
@@ -821,15 +1053,7 @@ local function layout()
   setBarColor(Castbar, db.castbarStyle, db.castbarFill, db.castbarFill2)
 
   if showShiftIndicator and attachCount > 0 then
-    local anchorName = nil
-    if attachHealth and showHealth then
-      anchorName = "health"
-    elseif attachPower and showPower then
-      anchorName = "power"
-    elseif attachDruid and showDruidMana then
-      anchorName = "druidmana"
-    end
-
+    local anchorName = attachInfo and attachInfo.anchor or nil
     local center = anchorName and barCenters[anchorName] or nil
     if center then
       local anchorWidth = powerWidth
@@ -852,21 +1076,21 @@ local function layout()
       local iconCenterY = center.y
       if attachCount > 1 then
         local topY, bottomY
-        if attachHealth and showHealth and barCenters.health then
+        if attachHealth and barCenters.health then
           local y = barCenters.health.y
           local top = y + healthHeight / 2
           local bottom = y - healthHeight / 2
           topY = topY and math.max(topY, top) or top
           bottomY = bottomY and math.min(bottomY, bottom) or bottom
         end
-        if attachPower and showPower and barCenters.power then
+        if attachPower and barCenters.power then
           local y = barCenters.power.y
           local top = y + powerHeight / 2
           local bottom = y - powerHeight / 2
           topY = topY and math.max(topY, top) or top
           bottomY = bottomY and math.min(bottomY, bottom) or bottom
         end
-        if attachDruid and showDruidMana and barCenters.druidmana then
+        if attachDruid and barCenters.druidmana then
           local y = barCenters.druidmana.y
           local top = y + druidManaHeight / 2
           local bottom = y - druidManaHeight / 2
@@ -1039,7 +1263,17 @@ local function updateAlpha()
   local showPower = shouldShowPower(db)
   local showDruidMana = shouldShowDruidMana(db)
   local showCastbar = shouldShowCastbar(db)
-  local showShiftIndicator = shouldShowShiftIndicator(db)
+  local attachInfo = getShiftAttachInfo(db)
+  local showShiftIndicator = db.showShiftIndicator == "1"
+  if showShiftIndicator and UnitClass then
+    local _, class = UnitClass("player")
+    if class ~= "DRUID" then
+      showShiftIndicator = false
+    end
+  end
+  if showShiftIndicator then
+    showShiftIndicator = attachInfo and attachInfo.count and attachInfo.count > 0
+  end
   local cpCount = SCE.comboPoints or 0
   local hideComboEmpty = (db.hideComboWhenEmpty == "1" and cpCount <= 0)
   local comboVisible = showCombo and not hideComboEmpty
@@ -1085,9 +1319,9 @@ local function updateAlpha()
   end
 
   if showShiftIndicator then
-    local attach = db.shiftIndicatorAttach or "power"
     local targetAlpha = 1
-    if attach == "power" or attach == "healthpower" or attach == "powerdruid" or attach == "healthpowerdruid" then
+    local attachSet = attachInfo and attachInfo.set or {}
+    if attachSet.power then
       targetAlpha = alpha
     end
     ShiftIndicator:SetAlpha(targetAlpha)
@@ -1297,6 +1531,8 @@ setLocked = function(locked)
   Castbar:SetMovable(not isLocked)
   CP:EnableMouse(not isLocked)
   CP:SetMovable(not isLocked)
+  ShiftIndicator:EnableMouse(not isLocked)
+  ShiftIndicator:SetMovable(not isLocked)
   
   UI:EnableMouse(false)
   UI:SetMovable(false)
@@ -1377,6 +1613,19 @@ DruidMana:SetScript("OnDragStart", function() handleDragStart(DruidMana) end)
 DruidMana:SetScript("OnDragStop", function() handleDragStop(DruidMana, "druidMana") end)
 Castbar:SetScript("OnDragStart", function() handleDragStart(Castbar) end)
 Castbar:SetScript("OnDragStop", function() handleDragStop(Castbar, "castbar") end)
+ShiftIndicator:SetScript("OnDragStart", function()
+  if StupidComboEnergyDB.grouped == "1" then
+    handleDragStart(ShiftIndicator)
+  end
+end)
+ShiftIndicator:SetScript("OnDragStop", function()
+  if StupidComboEnergyDB.grouped == "1" then
+    handleDragStop(ShiftIndicator, "power")
+  else
+    ShiftIndicator:StopMovingOrSizing()
+    layout()
+  end
+end)
 
 local function updateAll()
   local db = StupidComboEnergyDB or {}
@@ -1386,6 +1635,7 @@ local function updateAll()
   local showDruidMana = shouldShowDruidMana(db)
   local showCastbar = shouldShowCastbar(db)
   local showShiftIndicator = shouldShowShiftIndicator(db)
+  local useShiftText = SCE.usesShiftText and SCE.usesShiftText(db)
   local cp = 0
   local powerKey = getPowerKey()
   if powerKey ~= lastPowerType
@@ -1407,9 +1657,13 @@ local function updateAll()
   end
 
   if showCombo then
-    if UnitExists("target") and UnitCanAttack("player", "target") then
-      if GetComboPoints then
-        cp = GetComboPoints() or 0
+    if db.testMode == "1" then
+      cp = 5
+    else
+      if UnitExists("target") and UnitCanAttack("player", "target") then
+        if GetComboPoints then
+          cp = GetComboPoints() or 0
+        end
       end
     end
     SCE.comboPoints = cp
@@ -1436,7 +1690,7 @@ local function updateAll()
     SCE.updateCastbar()
   end
   
-  if showShiftIndicator and SCE.updateShiftIndicator then
+  if (showShiftIndicator or useShiftText) and SCE.updateShiftIndicator then
     SCE.updateShiftIndicator()
   end
 

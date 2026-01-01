@@ -128,13 +128,7 @@ local function resolveIcon(db)
 end
 
 local function updateShiftIndicator()
-  local frame = SCE.ShiftIndicator
-  if not frame then return end
   local db = StupidComboEnergyDB or {}
-  if SCE.shouldShowShiftIndicator and not SCE.shouldShowShiftIndicator(db) then
-    frame:Hide()
-    return
-  end
 
   if (state.cost or 0) <= 0 then
     updateCost(false)
@@ -147,6 +141,14 @@ local function updateShiftIndicator()
   local casts = 0
   if cost > 0 and mana then
     casts = math.floor(mana / cost)
+  end
+  SCE.shiftCasts = casts
+
+  local frame = SCE.ShiftIndicator
+  if not frame then return end
+  if SCE.shouldShowShiftIndicator and not SCE.shouldShowShiftIndicator(db) then
+    frame:Hide()
+    return
   end
 
   if frame.icon then
@@ -205,7 +207,9 @@ local function setupShiftIndicatorScripts()
   eventFrame:SetScript("OnUpdate", function()
     local db = StupidComboEnergyDB or {}
     if SCE.shouldShowShiftIndicator and not SCE.shouldShowShiftIndicator(db) then
-      return
+      if not (SCE.usesShiftText and SCE.usesShiftText(db)) then
+        return
+      end
     end
     local interval = tonumber(db.shiftIndicatorUpdateInterval) or 0.5
     if interval < 0.05 then interval = 0.05 end
