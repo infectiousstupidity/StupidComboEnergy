@@ -7,6 +7,7 @@ SCE._moduleLoaded.layout = true
 local UnitPowerType = UnitPowerType
 local UnitManaMax = UnitManaMax
 local UnitMana = UnitMana
+local UnitClass = UnitClass
 local CreateFrame = CreateFrame
 local UIParent = UIParent
 
@@ -102,15 +103,62 @@ local function applyBorder(border, size, c)
   border.right:SetWidth(size)
 end
 
-local function isEnergy()
+local function getPowerType()
   if UnitPowerType then
     local ptype, ptoken = UnitPowerType("player")
-    if ptype ~= nil then
-      return ptype == 3 or ptoken == "ENERGY"
-    end
+    return ptype, ptoken
+  end
+  return nil, nil
+end
+
+local function isEnergy()
+  local ptype, ptoken = getPowerType()
+  if ptype ~= nil then
+    return ptype == 3 or ptoken == "ENERGY"
   end
   local maxv = UnitManaMax("player") or 0
   return maxv <= 120
+end
+
+local function isRage()
+  local ptype, ptoken = getPowerType()
+  if ptype ~= nil then
+    return ptype == 1 or ptoken == "RAGE"
+  end
+  return false
+end
+
+local function shouldShowEnergy(db)
+  db = db or StupidComboEnergyDB or {}
+  return db.showEnergyBar ~= "0"
+end
+
+local function shouldShowCombo(db)
+  db = db or StupidComboEnergyDB or {}
+  if db.showComboBar == "0" then return false end
+  if UnitClass then
+    local _, class = UnitClass("player")
+    if class == "ROGUE" then return true end
+    if class == "DRUID" then return isEnergy() end
+  end
+  return false
+end
+
+local function getEnergyPalette(db)
+  local defaults = SCE.defaults or {}
+  db = db or StupidComboEnergyDB or {}
+  local style = db.energyStyle or defaults.energyStyle or "solid"
+  local fill1 = db.energyFill or defaults.energyFill
+  local fill2 = db.energyFill2 or defaults.energyFill2
+  local empty = db.energyEmpty or defaults.energyEmpty
+
+  if not isEnergy() and isRage() then
+    fill1 = db.rageFill or defaults.rageFill or fill1
+    fill2 = db.rageFill2 or defaults.rageFill2 or fill2
+    empty = db.rageEmpty or defaults.rageEmpty or empty
+  end
+
+  return style, fill1, fill2, empty
 end
 
 local UI = CreateFrame("Frame", "StupidComboEnergyFrame", UIParent)
@@ -168,6 +216,9 @@ SCE.setColor = setColor
 SCE.setBarColor = setBarColor
 SCE.applyBorder = applyBorder
 SCE.isEnergy = isEnergy
+SCE.shouldShowEnergy = shouldShowEnergy
+SCE.shouldShowCombo = shouldShowCombo
+SCE.getEnergyPalette = getEnergyPalette
 
 local function layout()
   local db = StupidComboEnergyDB
@@ -194,6 +245,12 @@ local function layout()
     energyBorderSize = snap(energyBorderSize)
     cpBorderSize = snap(cpBorderSize)
   end
+  if db.showOnlyActiveCombo == "1" and db.hideComboWhenEmpty == "1" then
+    cpBorderSize = 0
+  end
+
+  local showEnergy = shouldShowEnergy(db)
+  local showCombo = shouldShowCombo(db)
   
   UI:SetFrameStrata(db.frameStrata or "DIALOG")
   Energy:SetFrameStrata(db.frameStrata or "DIALOG")
@@ -210,8 +267,16 @@ local function layout()
   
   Energy:SetParent(UIParent)
   CP:SetParent(UIParent)
-  Energy:Show()
-  CP:Show()
+  if showEnergy then
+    Energy:Show()
+  else
+    Energy:Hide()
+  end
+  if showCombo then
+    CP:Show()
+  else
+    CP:Hide()
+  end
   
   Energy:ClearAllPoints()
   CP:ClearAllPoints()
@@ -219,26 +284,47 @@ local function layout()
   if db.grouped == "1" then
     local mainX = db.x or 0
     local mainY = db.y or 0
-    if db.energyFirst == "1" then
-      local energyOffset = (cpHeight + gap) / 2
-      local cpOffset = (energyHeight + gap) / 2
-      
-      Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + energyOffset)
+    local energyOffset = (cpHeight + gap) / 2
+    local cpOffset = (energyHeight + gap) / 2
+    if showEnergy and showCombo then
+      if db.energyFirst == "1" then
+        Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + energyOffset)
+        CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - cpOffset)
+        if Energy.SetFrameLevel and CP.SetFrameLevel then
+          Energy:SetFrameLevel((db.frameLevel or 200) + 2)
+          CP:SetFrameLevel((db.frameLevel or 200) + 1)
+        end
+      else
+        CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + cpOffset)
+        Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - energyOffset)
+        if Energy.SetFrameLevel and CP.SetFrameLevel then
+          CP:SetFrameLevel((db.frameLevel or 200) + 2)
+          Energy:SetFrameLevel((db.frameLevel or 200) + 1)
+        end
+      end
+    elseif showEnergy and not showCombo then
+      if db.energyFirst == "1" then
+        Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + energyOffset)
+      else
+        Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - energyOffset)
+      end
       CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - cpOffset)
-      if Energy.SetFrameLevel and CP.SetFrameLevel then
-        Energy:SetFrameLevel((db.frameLevel or 200) + 2)
+      if Energy.SetFrameLevel then
+        Energy:SetFrameLevel((db.frameLevel or 200) + 1)
+      end
+    elseif showCombo and not showEnergy then
+      if db.energyFirst == "1" then
+        CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - cpOffset)
+      else
+        CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + cpOffset)
+      end
+      Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + energyOffset)
+      if CP.SetFrameLevel then
         CP:SetFrameLevel((db.frameLevel or 200) + 1)
       end
     else
-      local cpOffset = (energyHeight + gap) / 2
-      local energyOffset = (cpHeight + gap) / 2
-      
-      CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + cpOffset)
-      Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - energyOffset)
-      if Energy.SetFrameLevel and CP.SetFrameLevel then
-        CP:SetFrameLevel((db.frameLevel or 200) + 2)
-        Energy:SetFrameLevel((db.frameLevel or 200) + 1)
-      end
+      Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY)
+      CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY)
     end
   else
     Energy:SetPoint(db.energyPoint, UIParent, db.energyRelativePoint, db.energyX, db.energyY)
@@ -258,11 +344,11 @@ local function layout()
   Energy.text:SetPoint("CENTER", Energy, "CENTER", db.energyTextOffsetX or 0, db.energyTextOffsetY or 0)
 
   Energy.bg:SetAllPoints()
-  local energyEmpty = db.energyEmpty or (SCE.defaults and SCE.defaults.energyEmpty) or { 0, 0, 0, 0.7 }
+  local energyStyle, energyFill, energyFill2, energyEmpty = getEnergyPalette(db)
   setColor(Energy.bg, energyEmpty)
-  setBarColor(Energy, db.energyStyle, db.energyFill, db.energyFill2)
+  setBarColor(Energy, energyStyle, energyFill, energyFill2)
 
-  local showGapLine = (db.grouped == "1" and db.groupGapLine == "1" and gap > 0)
+  local showGapLine = (db.grouped == "1" and db.groupGapLine == "1" and gap > 0 and showEnergy and showCombo)
   if showGapLine then
     local lineSize = db.groupGapLineSize or 0
     if lineSize <= 0 then lineSize = gap end
@@ -408,14 +494,53 @@ local function layout()
 end
 
 local function updateAlpha()
-  local db = StupidComboEnergyDB
-  if isEnergy() then
-    UI:SetAlpha(1)
-  else
+  local db = StupidComboEnergyDB or {}
+  local showEnergy = shouldShowEnergy(db)
+  local showCombo = shouldShowCombo(db)
+  local cpCount = SCE.comboPoints or 0
+  local hideComboEmpty = (db.hideComboWhenEmpty == "1" and cpCount <= 0)
+  local comboVisible = showCombo and not hideComboEmpty
+  local alpha = 1
+
+  local isPrimaryPower = isEnergy() or isRage()
+  if not isPrimaryPower then
     if db.showWhenNotEnergy == "1" then
-      UI:SetAlpha(db.notEnergyAlpha)
+      alpha = db.notEnergyAlpha or 0.35
     else
-      UI:SetAlpha(0)
+      alpha = 0
+    end
+  end
+
+  if showEnergy then
+    if alpha > 0 then
+      Energy:SetAlpha(alpha)
+      Energy:Show()
+    else
+      Energy:SetAlpha(0)
+      Energy:Hide()
+    end
+  else
+    Energy:Hide()
+  end
+
+  if comboVisible then
+    if alpha > 0 then
+      CP:SetAlpha(alpha)
+      CP:Show()
+    else
+      CP:SetAlpha(0)
+      CP:Hide()
+    end
+  else
+    CP:Hide()
+  end
+
+  if GroupGapLine then
+    if showEnergy and comboVisible and db.grouped == "1" and db.groupGapLine == "1" and (db.gap or 0) > 0 and alpha > 0 then
+      GroupGapLine:SetAlpha(alpha)
+      GroupGapLine:Show()
+    else
+      GroupGapLine:Hide()
     end
   end
 end
@@ -423,16 +548,24 @@ end
 local function applyColors()
   local db = StupidComboEnergyDB
   setColor(UI.bg, db.frameBg)
-  local energyEmpty = db.energyEmpty or (SCE.defaults and SCE.defaults.energyEmpty) or { 0, 0, 0, 0.7 }
+  local energyStyle, energyFill, energyFill2, energyEmpty = getEnergyPalette(db)
   setColor(Energy.bg, energyEmpty)
-  setBarColor(Energy, db.energyStyle, db.energyFill, db.energyFill2)
+  setBarColor(Energy, energyStyle, energyFill, energyFill2)
   if db.energyTextColor then
     Energy.text:SetTextColor(db.energyTextColor[1], db.energyTextColor[2], db.energyTextColor[3], db.energyTextColor[4] or 1)
   end
   for i = 1, 5 do
     local seg = CP.segs[i]
     setColor(seg.bg, db.cpEmpty)
-    setBarColor(seg, db.cpStyle, db.cpFill, db.cpFill2)
+  end
+  if SCE.setComboPoints then
+    local cp = 0
+    if UnitExists("target") and UnitCanAttack("player", "target") then
+      if GetComboPoints then
+        cp = GetComboPoints() or 0
+      end
+    end
+    SCE.setComboPoints(cp)
   end
   local pixel = (SCE.getPerfectPixel and SCE.getPerfectPixel()) or nil
   local energyBorderSize = db.energyBorderSize or 0
@@ -440,6 +573,9 @@ local function applyColors()
   if pixel and SCE.snapToPixel then
     energyBorderSize = SCE.snapToPixel(energyBorderSize, pixel)
     cpBorderSize = SCE.snapToPixel(cpBorderSize, pixel)
+  end
+  if db.showOnlyActiveCombo == "1" and db.hideComboWhenEmpty == "1" then
+    cpBorderSize = 0
   end
   applyBorder(EnergyBorder, energyBorderSize, db.energyBorderColor or (SCE.defaults and SCE.defaults.energyBorderColor) or {0,0,0,1})
   applyBorder(CPBorder, cpBorderSize, db.cpBorderColor or (SCE.defaults and SCE.defaults.cpBorderColor) or {0,0,0,1})
@@ -503,6 +639,16 @@ local dragState = {
   cpStartX = nil,
   cpStartY = nil,
 }
+
+local lastPowerType = nil
+local lastEnergyVisible = nil
+local lastComboVisible = nil
+
+local function getPowerKey()
+  local ptype = getPowerType()
+  if ptype ~= nil then return ptype end
+  return isEnergy() and "ENERGY" or "OTHER"
+end
 
 local function getFrameOffset(frame)
   local cx, cy = frame:GetCenter()
@@ -584,21 +730,38 @@ CP:SetScript("OnDragStop", function()
 end)
 
 local function updateAll()
-  updateAlpha()
+  local db = StupidComboEnergyDB or {}
+  local showEnergy = shouldShowEnergy(db)
+  local showCombo = shouldShowCombo(db)
+  local cp = 0
+  local powerKey = getPowerKey()
+  if powerKey ~= lastPowerType or showEnergy ~= lastEnergyVisible or showCombo ~= lastComboVisible then
+    lastPowerType = powerKey
+    lastEnergyVisible = showEnergy
+    lastComboVisible = showCombo
+    layout()
+    applyColors()
+  end
 
-  if SCE.setComboPoints then
-    local cp = 0
+  if showCombo then
     if UnitExists("target") and UnitCanAttack("player", "target") then
       if GetComboPoints then
         cp = GetComboPoints() or 0
       end
     end
-    SCE.setComboPoints(cp)
+    SCE.comboPoints = cp
+    if SCE.setComboPoints then
+      SCE.setComboPoints(cp)
+    end
+  else
+    SCE.comboPoints = 0
   end
 
-  if SCE.hardSyncEnergy then
+  if showEnergy and SCE.hardSyncEnergy then
     SCE.hardSyncEnergy()
   end
+
+  updateAlpha()
 end
 
 SCE.layout = layout

@@ -40,7 +40,17 @@ local ConfigRefreshers = {}
 local ReloadNeeded = false
 local ReloadPrompt
 local ReloadNotice
+local updateReloadLabel
 local cfgId = 0
+
+local function refreshConfig()
+  if ConfigFrame and ConfigFrame:IsShown() then
+    for _, fn in ipairs(ConfigRefreshers) do
+      fn()
+    end
+    updateReloadLabel()
+  end
+end
 
 local function newName(prefix)
   cfgId = cfgId + 1
@@ -117,7 +127,7 @@ local function hexToColor(hex, existingAlpha)
   return { r / 255, g / 255, b / 255, existingAlpha or 1 }
 end
 
-local function updateReloadLabel()
+updateReloadLabel = function()
   if not ReloadNotice then return end
   if ReloadNeeded then
     ReloadNotice:SetText("|cffff5555[!] Reload required|r")
@@ -352,7 +362,7 @@ local function addTextField(panel, label, getter, setter, y, width, requiresRelo
 end
 
 -- Checkbox field for boolean settings (pfUI style)
-local function addBoolField(panel, label, configKey, y)
+local function addBoolField(panel, label, configKey, y, onChanged)
   local frame = CreateFrame("Frame", nil, panel)
   frame:SetHeight(22)
   frame:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, y)
@@ -393,11 +403,81 @@ local function addBoolField(panel, label, configKey, y)
       StupidComboEnergyDB[this.configKey] = "0"
     end
     refreshUI()
+    if onChanged then
+      onChanged()
+    end
+    refreshConfig()
   end)
   
   local function apply()
     local val = StupidComboEnergyDB[configKey]
     cb:SetChecked(val == "1")
+  end
+  
+  apply()
+  table.insert(ConfigRefreshers, apply)
+  return y - 23
+end
+
+local function addDependentBoolField(panel, label, configKey, requiredKey, y)
+  local frame = CreateFrame("Frame", nil, panel)
+  frame:SetHeight(22)
+  frame:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, y)
+  frame:SetPoint("TOPRIGHT", panel, "TOPRIGHT", 0, y)
+  
+  frame.tex = frame:CreateTexture(nil, "BACKGROUND")
+  frame.tex:SetTexture(1, 1, 1, 0.05)
+  frame.tex:SetAllPoints()
+  frame.tex:Hide()
+  frame:SetScript("OnEnter", function() this.tex:Show() end)
+  frame:SetScript("OnLeave", function() this.tex:Hide() end)
+  
+  local text = frame:CreateFontString(nil, "ARTWORK", "GameFontWhite")
+  if pfUI and pfUI.font_default then
+    text:SetFont(pfUI.font_default, 12)
+  else
+    text:SetFont("Fonts\\FRIZQT__.TTF", 12)
+  end
+  text:SetPoint("LEFT", frame, "LEFT", 5, 0)
+  text:SetJustifyH("LEFT")
+  text:SetText(label)
+  
+  local cb = CreateFrame("CheckButton", newName("SCECheck"), frame, "UICheckButtonTemplate")
+  cb:SetNormalTexture("")
+  cb:SetPushedTexture("")
+  cb:SetHighlightTexture("")
+  cb:SetWidth(14)
+  cb:SetHeight(14)
+  cb:SetPoint("RIGHT", frame, "RIGHT", -5, 0)
+  createSimpleBackdrop(cb)
+  cb.configKey = configKey
+  
+  cb:SetScript("OnClick", function()
+    if this:GetChecked() then
+      StupidComboEnergyDB[this.configKey] = "1"
+      StupidComboEnergyDB[requiredKey] = "1"
+    else
+      StupidComboEnergyDB[this.configKey] = "0"
+    end
+    refreshUI()
+    refreshConfig()
+  end)
+  
+  local function apply()
+    local required = (StupidComboEnergyDB[requiredKey] == "1")
+    if not required and StupidComboEnergyDB[configKey] == "1" then
+      StupidComboEnergyDB[configKey] = "0"
+    end
+    cb:SetChecked(StupidComboEnergyDB[configKey] == "1")
+    if required then
+      if cb.Enable then cb:Enable() else cb:EnableMouse(true) end
+      cb:SetAlpha(1)
+      text:SetTextColor(1, 1, 1, 1)
+    else
+      if cb.Disable then cb:Disable() else cb:EnableMouse(false) end
+      cb:SetAlpha(0.4)
+      text:SetTextColor(0.6, 0.6, 0.6, 0.9)
+    end
   end
   
   apply()
@@ -935,6 +1015,7 @@ end
 
 local function buildEnergyPanel(parent)
   local y = -20
+  y = addBoolField(parent, "Enable Energy Bar", "showEnergyBar", y)
   y = addBoolField(parent, "Grouped Mode", "grouped", y)
   y = addBoolField(parent, "Energy First (grouped)", "energyFirst", y)
   y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.x end, function(v) StupidComboEnergyDB.x = v end, y)
@@ -951,6 +1032,9 @@ local function buildEnergyPanel(parent)
   y = addColorField(parent, "Fill Color", function() return StupidComboEnergyDB.energyFill end, function(c) StupidComboEnergyDB.energyFill = c end, y)
   y = addColorField(parent, "Gradient Color", function() return StupidComboEnergyDB.energyFill2 end, function(c) StupidComboEnergyDB.energyFill2 = c end, y)
   y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.energyEmpty end, function(c) StupidComboEnergyDB.energyEmpty = c end, y)
+  y = addColorField(parent, "Rage Fill Color", function() return StupidComboEnergyDB.rageFill end, function(c) StupidComboEnergyDB.rageFill = c end, y)
+  y = addColorField(parent, "Rage Gradient Color", function() return StupidComboEnergyDB.rageFill2 end, function(c) StupidComboEnergyDB.rageFill2 = c end, y)
+  y = addColorField(parent, "Rage Empty Color", function() return StupidComboEnergyDB.rageEmpty end, function(c) StupidComboEnergyDB.rageEmpty = c end, y)
   y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.energyBorderSize end, function(v) StupidComboEnergyDB.energyBorderSize = v end, y)
   y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.energyBorderColor end, function(c) StupidComboEnergyDB.energyBorderColor = c end, y)
   y = addBoolField(parent, "Show Energy Ticker", "showEnergyTicker", y)
@@ -967,8 +1051,18 @@ end
 
 local function buildComboPanel(parent)
   local y = -20
+  y = addBoolField(parent, "Enable Combo Bar", "showComboBar", y)
+  y = addBoolField(parent, "Hide When Empty", "hideComboWhenEmpty", y)
+  y = addDependentBoolField(parent, "Show Only Active Points (requires Hide When Empty)", "showOnlyActiveCombo", "hideComboWhenEmpty", y)
   y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.width end, function(v) StupidComboEnergyDB.width = v end, y)
   y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.heightCP end, function(v) StupidComboEnergyDB.heightCP = v end, y)
+  y = addCycleField(parent, "Color Mode", {"unified","finisher","split"}, function() return StupidComboEnergyDB.cpColorMode end, function(v) StupidComboEnergyDB.cpColorMode = v end, y)
+  y = addColorField(parent, "Base Color (1-4 / 1-2)", function() return StupidComboEnergyDB.cpFillBase end, function(c) StupidComboEnergyDB.cpFillBase = c end, y)
+  y = addColorField(parent, "Base Gradient 2", function() return StupidComboEnergyDB.cpFillBase2 end, function(c) StupidComboEnergyDB.cpFillBase2 = c end, y)
+  y = addColorField(parent, "Mid Color (3-4)", function() return StupidComboEnergyDB.cpFillMid end, function(c) StupidComboEnergyDB.cpFillMid = c end, y)
+  y = addColorField(parent, "Mid Gradient 2", function() return StupidComboEnergyDB.cpFillMid2 end, function(c) StupidComboEnergyDB.cpFillMid2 = c end, y)
+  y = addColorField(parent, "Finisher Color (5)", function() return StupidComboEnergyDB.cpFillFinisher end, function(c) StupidComboEnergyDB.cpFillFinisher = c end, y)
+  y = addColorField(parent, "Finisher Gradient 2", function() return StupidComboEnergyDB.cpFillFinisher2 end, function(c) StupidComboEnergyDB.cpFillFinisher2 = c end, y)
   y = addCycleField(parent, "Separator Style", {"gap","gapline","border"}, function() return StupidComboEnergyDB.cpSeparatorStyle end, function(v) StupidComboEnergyDB.cpSeparatorStyle = v end, y)
   y = addNumberField(parent, "Segment Gap (gap/gapline)", function() return StupidComboEnergyDB.cpGap end, function(v) StupidComboEnergyDB.cpGap = v end, y)
   y = addNumberField(parent, "Separator Width", function() return StupidComboEnergyDB.cpSeparatorWidth end, function(v) StupidComboEnergyDB.cpSeparatorWidth = v end, y)
@@ -980,6 +1074,81 @@ local function buildComboPanel(parent)
   y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.cpBorderSize end, function(v) StupidComboEnergyDB.cpBorderSize = v end, y)
   y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.cpBorderColor end, function(c) StupidComboEnergyDB.cpBorderColor = c end, y)
   return y
+end
+
+local function buildSettingsPanel(parent)
+  local y = -20
+  y = addBoolField(parent, "Enable Debug Logs", "debugEnabled", y, function()
+    if SCE.applyDebugSetting then
+      SCE.applyDebugSetting()
+    end
+  end)
+  return y
+end
+
+local function buildAboutPanel(parent)
+  local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOP", parent, "TOP", 0, -40)
+  if pfUI and pfUI.font_default then
+    title:SetFont(pfUI.font_default, 48, "OUTLINE")
+  else
+    title:SetFont("Fonts\\FRIZQT__.TTF", 48, "OUTLINE")
+  end
+  title:SetText("SCE")
+  title:SetTextColor(0.2, 1, 0.8, 1)
+
+  local infoFont = (pfUI and pfUI.font_default) or "Fonts\\FRIZQT__.TTF"
+  local labelX = 180
+  local valueX = 340
+  local startY = -130
+  local stepY = 22
+
+  local function addInfoRow(labelText, row)
+    local y = startY - (row * stepY)
+    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+    label:SetFont(infoFont, 12)
+    label:SetPoint("TOPLEFT", parent, "TOPLEFT", labelX, y)
+    label:SetText(labelText .. ":")
+
+    local value = parent:CreateFontString(nil, "OVERLAY", "GameFontWhite")
+    value:SetFont(infoFont, 12)
+    value:SetPoint("TOPLEFT", parent, "TOPLEFT", valueX, y)
+    value:SetText("")
+    return value
+  end
+
+  local versionValue = addInfoRow("Version", 0)
+  local resValue = addInfoRow("Resolution", 1)
+  local scaleValue = addInfoRow("Scaling", 2)
+  local clientValue = addInfoRow("Gameclient", 3)
+  local localeValue = addInfoRow("Language", 4)
+
+  local function updateAbout()
+    local version = "unknown"
+    if GetAddOnMetadata then
+      version = GetAddOnMetadata("StupidComboEnergy", "Version") or version
+    end
+    local resolution = GetCVar("gxResolution") or "unknown"
+    local scale = GetCVar("uiScale") or "1"
+    local client = "unknown"
+    if GetBuildInfo then
+      local v = GetBuildInfo()
+      if v and v ~= "" then
+        client = v
+      end
+    end
+    local locale = (GetLocale and GetLocale()) or "unknown"
+
+    versionValue:SetText(version)
+    resValue:SetText(resolution)
+    scaleValue:SetText(scale)
+    clientValue:SetText(client)
+    localeValue:SetText(locale)
+  end
+
+  updateAbout()
+  table.insert(ConfigRefreshers, updateAbout)
+  return -260
 end
 
 local function buildConfigFrame()
@@ -1232,10 +1401,12 @@ local function buildConfigFrame()
     content:SetHeight(math.abs(lastY) + 40)
   end
 
-  addMenuButton("Energy Bar", "energy", buildEnergyPanel, 1)
-  addMenuButton("Combo Points", "combo", buildComboPanel, 2)
+  addMenuButton("About", "about", buildAboutPanel, 1)
+  addMenuButton("Settings", "settings", buildSettingsPanel, 2)
+  addMenuButton("Energy Bar", "energy", buildEnergyPanel, 3)
+  addMenuButton("Combo Points", "combo", buildComboPanel, 4)
 
-  showConfigPanel("energy")
+  showConfigPanel("about")
   SCE.ConfigFrame = ConfigFrame
   if SCE.debugMsg then SCE.debugMsg("Build config frame complete") end
 end

@@ -2,7 +2,7 @@ StupidComboEnergyNS = StupidComboEnergyNS or {}
 local SCE = StupidComboEnergyNS
 
 SCE.ADDON = "StupidComboEnergy"
-SCE.debugEnabled = true
+SCE.debugEnabled = false
 SCE_DEBUG_LOG = SCE_DEBUG_LOG or {}
 SCE._moduleLoaded = SCE._moduleLoaded or {}
 SCE._moduleLoaded.defaults = true
@@ -60,6 +60,9 @@ SCE.defaults = {
   energyFill2 = { 0.75, 0.70, 0.15, 0.95 },
   energyStyle = "solid",
   energyEmpty = { 0.10, 0.10, 0.10, 0.70 },
+  rageFill = { 0.80, 0.20, 0.20, 0.95 },
+  rageFill2 = { 0.65, 0.10, 0.10, 0.95 },
+  rageEmpty = { 0.12, 0.06, 0.06, 0.70 },
   energyBorderColor = { 0.00, 0.00, 0.00, 0.85 },
   energyBorderSize = 1,
   energyTextFont = "Fonts\\FRIZQT__.TTF",
@@ -72,11 +75,23 @@ SCE.defaults = {
   cpFill2  = { 0.80, 0.60, 0.05, 0.95 },
   cpStyle  = "solid",
   cpEmpty  = { 0.25, 0.25, 0.25, 0.70 },
+  cpColorMode = "unified", -- "unified", "finisher", "split"
+  cpFillBase = { 0.95, 0.75, 0.10, 0.95 },
+  cpFillBase2 = { 0.80, 0.60, 0.05, 0.95 },
+  cpFillMid = { 0.90, 0.55, 0.10, 0.95 },
+  cpFillMid2 = { 0.70, 0.40, 0.10, 0.95 },
+  cpFillFinisher = { 0.90, 0.15, 0.15, 0.95 },
+  cpFillFinisher2 = { 0.70, 0.10, 0.10, 0.95 },
   cpBorderColor = { 0.00, 0.00, 0.00, 0.85 },
   cpBorderSize = 1,
 
   frameBg  = { 0.00, 0.00, 0.00, 0.35 },
 
+  debugEnabled = "0",
+  showEnergyBar = "1",
+  showComboBar = "1",
+  hideComboWhenEmpty = "0",
+  showOnlyActiveCombo = "0",
   showWhenNotEnergy = "1",
   notEnergyAlpha = 0.35,
   
@@ -106,6 +121,11 @@ end
 
 function SCE.copyColor(c)
   return { c[1], c[2], c[3], c[4] }
+end
+
+function SCE.applyDebugSetting()
+  local db = StupidComboEnergyDB or {}
+  SCE.debugEnabled = (db.debugEnabled == "1")
 end
 
 function SCE.getPerfectPixel()
@@ -144,6 +164,37 @@ function SCE.ensureDB()
         StupidComboEnergyDB[k] = v
       end
     end
+  end
+
+  -- Migrate old combo color mode names and fields
+  if StupidComboEnergyDB.cpColorMode == "single" then
+    StupidComboEnergyDB.cpColorMode = "unified"
+  elseif StupidComboEnergyDB.cpColorMode == "1to4_5" then
+    StupidComboEnergyDB.cpColorMode = "finisher"
+  elseif StupidComboEnergyDB.cpColorMode == "1to2_3to4_5" then
+    StupidComboEnergyDB.cpColorMode = "split"
+  end
+
+  if StupidComboEnergyDB.cpFillBase == nil and StupidComboEnergyDB.cpFill1to4 then
+    StupidComboEnergyDB.cpFillBase = SCE.copyColor(StupidComboEnergyDB.cpFill1to4)
+  end
+  if StupidComboEnergyDB.cpFillBase == nil and StupidComboEnergyDB.cpFill1to2 then
+    StupidComboEnergyDB.cpFillBase = SCE.copyColor(StupidComboEnergyDB.cpFill1to2)
+  end
+  if StupidComboEnergyDB.cpFillMid == nil and StupidComboEnergyDB.cpFill3to4 then
+    StupidComboEnergyDB.cpFillMid = SCE.copyColor(StupidComboEnergyDB.cpFill3to4)
+  end
+  if StupidComboEnergyDB.cpFillFinisher == nil and StupidComboEnergyDB.cpFill5 then
+    StupidComboEnergyDB.cpFillFinisher = SCE.copyColor(StupidComboEnergyDB.cpFill5)
+  end
+
+  StupidComboEnergyDB.cpFill1to4 = nil
+  StupidComboEnergyDB.cpFill1to2 = nil
+  StupidComboEnergyDB.cpFill3to4 = nil
+  StupidComboEnergyDB.cpFill5 = nil
+
+  if SCE.applyDebugSetting then
+    SCE.applyDebugSetting()
   end
 end
 

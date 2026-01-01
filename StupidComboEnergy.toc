@@ -1,5 +1,5 @@
 ## Interface: 11200
-## Title: StupidComboEnergy
+## Title: [Stupid]ComboEnergy
 ## Notes: Smooth energy bar + combo point segments
 ## Author: stupid
 ## Version: 1.0.0

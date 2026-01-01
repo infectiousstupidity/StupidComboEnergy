@@ -58,6 +58,10 @@ local function onUpdate()
 
   local cur, maxv = readEnergy()
   local db = StupidComboEnergyDB
+  local isEnergy = true
+  if SCE.isEnergy then
+    isEnergy = SCE.isEnergy()
+  end
 
   if maxv ~= state.lastEnergyMax then
     state.lastEnergyMax = maxv
@@ -74,7 +78,7 @@ local function onUpdate()
     updateEnergyText(cur)
   end
   
-  if db.showEnergyTicker == "1" and Energy.ticker then
+  if db.showEnergyTicker == "1" and Energy.ticker and isEnergy then
     if cur >= maxv then
       Energy.ticker:Hide()
     else

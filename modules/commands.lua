@@ -34,13 +34,21 @@ local function handleSlashCmd(msg)
     rest = ""
   end
 
-  if cmd == "" or cmd == "help" then
+  if cmd == "" then
+    if SCE.toggleConfig then
+      SCE.toggleConfig()
+    else
+      SCE.printMsg("Config UI not available.")
+    end
+    return
+  end
+  
+  if cmd == "help" then
     SCE.printMsg("Commands:")
+    SCE.printMsg("/sce (open settings)")
     SCE.printMsg("/sce unlock | lock")
-    SCE.printMsg("/sce config")
-    SCE.printMsg("/sce energyempty r g b [a]")
     SCE.printMsg("/sce reset")
-    SCE.printMsg("/sce resetpos")
+    SCE.printMsg("/sce reset pos")
     return
   end
 
@@ -83,7 +91,7 @@ local function handleSlashCmd(msg)
     return
   end
   
-  if cmd == "resetpos" then
+  if cmd == "resetpos" or (cmd == "reset" and (rest == "pos" or rest == "position")) then
     local db = StupidComboEnergyDB
     local defaults = SCE.defaults or {}
     db.point = defaults.point

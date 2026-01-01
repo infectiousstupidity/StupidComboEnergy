@@ -4,6 +4,7 @@ local SCE = StupidComboEnergyNS
 local CreateFrame = CreateFrame
 
 local function rawDebug(msg)
+  if not SCE.debugEnabled then return end
   local line = "StupidComboEnergy DEBUG: " .. (msg or "")
   if DEFAULT_CHAT_FRAME then
     DEFAULT_CHAT_FRAME:AddMessage("|cff66ccff" .. line .. "|r")
