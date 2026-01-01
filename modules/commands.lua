@@ -38,6 +38,7 @@ local function handleSlashCmd(msg)
     SCE.printMsg("Commands:")
     SCE.printMsg("/sce unlock | lock")
     SCE.printMsg("/sce config")
+    SCE.printMsg("/sce energyempty r g b [a]")
     SCE.printMsg("/sce reset")
     SCE.printMsg("/sce resetpos")
     return
@@ -110,8 +111,8 @@ local function handleSlashCmd(msg)
 
   if cmd == "energycolor" then
     StupidComboEnergyDB.energyFill = c
-  elseif cmd == "energybg" then
-    StupidComboEnergyDB.energyBg = c
+  elseif cmd == "energyempty" then
+    StupidComboEnergyDB.energyEmpty = c
   elseif cmd == "cpfill" then
     StupidComboEnergyDB.cpFill = c
   elseif cmd == "cpempty" then

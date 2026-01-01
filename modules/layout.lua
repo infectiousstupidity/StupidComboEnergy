@@ -130,6 +130,7 @@ Energy:RegisterForDrag("LeftButton")
 
 Energy.bg = Energy:CreateTexture(nil, "BACKGROUND")
 Energy.bg:SetAllPoints()
+Energy.bg:SetTexture("Interface\\Buttons\\WHITE8X8")
 Energy.text = Energy:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
 
 Energy.ticker = Energy:CreateTexture(nil, "OVERLAY")
@@ -140,6 +141,12 @@ CP.segs = {}
 CP:RegisterForDrag("LeftButton")
 local EnergyBorder = createBorder(Energy, "BORDER")
 local CPBorder = createBorder(CP, "BORDER")
+local GroupGapLine = CreateFrame("Frame", nil, UIParent)
+GroupGapLine:Hide()
+GroupGapLine:SetFrameStrata("DIALOG")
+GroupGapLine:EnableMouse(false)
+GroupGapLine.tex = GroupGapLine:CreateTexture(nil, "OVERLAY")
+GroupGapLine.tex:SetAllPoints()
 
 CP.separators = {}
 for i = 1, 4 do
@@ -164,6 +171,29 @@ SCE.isEnergy = isEnergy
 
 local function layout()
   local db = StupidComboEnergyDB
+  local pixel = (SCE.getPerfectPixel and SCE.getPerfectPixel()) or nil
+  local function snap(v)
+    if SCE.snapToPixel then
+      return SCE.snapToPixel(v, pixel)
+    end
+    return v
+  end
+  local gap = db.gap or 0
+  local energyWidth = db.width or 0
+  local energyHeight = db.heightEnergy or 0
+  local cpWidth = db.width or 0
+  local cpHeight = db.heightCP or 0
+  local energyBorderSize = db.energyBorderSize or 0
+  local cpBorderSize = db.cpBorderSize or 1
+  if pixel then
+    gap = snap(gap)
+    energyWidth = snap(energyWidth)
+    energyHeight = snap(energyHeight)
+    cpWidth = snap(cpWidth)
+    cpHeight = snap(cpHeight)
+    energyBorderSize = snap(energyBorderSize)
+    cpBorderSize = snap(cpBorderSize)
+  end
   
   UI:SetFrameStrata(db.frameStrata or "DIALOG")
   Energy:SetFrameStrata(db.frameStrata or "DIALOG")
@@ -190,8 +220,8 @@ local function layout()
     local mainX = db.x or 0
     local mainY = db.y or 0
     if db.energyFirst == "1" then
-      local energyOffset = (db.heightCP + db.gap) / 2
-      local cpOffset = (db.heightEnergy + db.gap) / 2
+      local energyOffset = (cpHeight + gap) / 2
+      local cpOffset = (energyHeight + gap) / 2
       
       Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + energyOffset)
       CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - cpOffset)
@@ -200,8 +230,8 @@ local function layout()
         CP:SetFrameLevel((db.frameLevel or 200) + 1)
       end
     else
-      local cpOffset = (db.heightEnergy + db.gap) / 2
-      local energyOffset = (db.heightCP + db.gap) / 2
+      local cpOffset = (energyHeight + gap) / 2
+      local energyOffset = (cpHeight + gap) / 2
       
       CP:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY + cpOffset)
       Energy:SetPoint("CENTER", UIParent, "CENTER", mainX, mainY - energyOffset)
@@ -220,16 +250,49 @@ local function layout()
     end
   end
   
-  setSize(Energy, db.width, db.heightEnergy)
-  setSize(CP, db.width, db.heightCP)
+  setSize(Energy, energyWidth, energyHeight)
+  setSize(CP, cpWidth, cpHeight)
   
-  Energy:SetHeight(db.heightEnergy)
+  Energy:SetHeight(energyHeight)
   Energy.text:ClearAllPoints()
   Energy.text:SetPoint("CENTER", Energy, "CENTER", db.energyTextOffsetX or 0, db.energyTextOffsetY or 0)
 
   Energy.bg:SetAllPoints()
-  setColor(Energy.bg, db.energyBg)
+  local energyEmpty = db.energyEmpty or (SCE.defaults and SCE.defaults.energyEmpty) or { 0, 0, 0, 0.7 }
+  setColor(Energy.bg, energyEmpty)
   setBarColor(Energy, db.energyStyle, db.energyFill, db.energyFill2)
+
+  local showGapLine = (db.grouped == "1" and db.groupGapLine == "1" and gap > 0)
+  if showGapLine then
+    local lineSize = db.groupGapLineSize or 0
+    if lineSize <= 0 then lineSize = gap end
+    if lineSize > gap then lineSize = gap end
+    if pixel then lineSize = snap(lineSize) end
+    if lineSize <= 0 then
+      GroupGapLine:Hide()
+    else
+      local topFrame = (db.energyFirst == "1") and Energy or CP
+      local borderExtent = 0
+      if energyBorderSize > borderExtent then borderExtent = energyBorderSize end
+      if cpBorderSize > borderExtent then borderExtent = cpBorderSize end
+      local offset = (gap - lineSize) / 2
+      if pixel then offset = snap(offset) end
+      GroupGapLine:ClearAllPoints()
+      GroupGapLine:SetPoint("TOP", topFrame, "BOTTOM", 0, -offset)
+      GroupGapLine:SetPoint("LEFT", topFrame, "LEFT", -borderExtent, 0)
+      GroupGapLine:SetPoint("RIGHT", topFrame, "RIGHT", borderExtent, 0)
+      GroupGapLine:SetHeight(lineSize)
+      GroupGapLine:SetFrameStrata(db.frameStrata or "DIALOG")
+      if GroupGapLine.SetFrameLevel then
+        GroupGapLine:SetFrameLevel((db.frameLevel or 200) + 3)
+      end
+      local c = db.groupGapLineColor or (SCE.defaults and SCE.defaults.groupGapLineColor) or {0,0,0,1}
+      GroupGapLine.tex:SetTexture(c[1], c[2], c[3], c[4] or 1)
+      GroupGapLine:Show()
+    end
+  else
+    GroupGapLine:Hide()
+  end
   
   if db.showEnergyTicker == "1" then
     local tickerHeight = db.heightEnergy + 10
@@ -254,21 +317,30 @@ local function layout()
     Energy.ticker:Hide()
   end
 
-  CP:SetHeight(db.heightCP)
+  CP:SetHeight(cpHeight)
   
   local separatorStyle = db.cpSeparatorStyle or "gap"
-  local cpBorderSize = db.cpBorderSize or 1
   local cpSeparatorWidth = db.cpSeparatorWidth or 2
   local cpGap, segW
   
   if separatorStyle == "border" then
     cpGap = 0
-    segW = db.width / 5
+    segW = cpWidth / 5
   else
     cpGap = db.cpGap or 4
-    segW = (db.width - (4 * cpGap)) / 5
+    segW = (cpWidth - (4 * cpGap)) / 5
   end
   
+  if pixel then
+    cpSeparatorWidth = snap(cpSeparatorWidth)
+    cpGap = snap(cpGap)
+    segW = snap(segW)
+  end
+  local segWLast = cpWidth - (segW * 4) - (cpGap * 4)
+  if segWLast < 0 then segWLast = segW end
+  
+  local sepX = {}
+  local x = 0
   for i = 1, 5 do
     local seg = CP.segs[i]
     if not seg then
@@ -283,28 +355,44 @@ local function layout()
     end
 
     seg:ClearAllPoints()
-    if i == 1 then
-      seg:SetPoint("LEFT", CP, "LEFT", 0, 0)
-    else
-      seg:SetPoint("LEFT", CP.segs[i-1], "RIGHT", cpGap, 0)
-    end
-    setSize(seg, segW, db.heightCP)
+    seg:SetPoint("LEFT", CP, "LEFT", x, 0)
+    local w = (i == 5) and segWLast or segW
+    setSize(seg, w, cpHeight)
     seg:SetMinMaxValues(0, 1)
     seg:SetValue(0)
 
     setColor(seg.bg, db.cpEmpty)
     setBarColor(seg, db.cpStyle, db.cpFill, db.cpFill2)
+    
+    x = x + w + cpGap
+    if i < 5 then
+      sepX[i] = x - cpGap
+    end
   end
   
   local separatorColor = db.cpSeparatorColor or (SCE.defaults and SCE.defaults.cpSeparatorColor) or {0,0,0,1}
   for i = 1, 4 do
     local sepFrame = CP.separators[i]
     if sepFrame then
-      if separatorStyle == "border" then
+      if separatorStyle == "border" or (separatorStyle == "gapline" and cpGap > 0) then
         sepFrame:ClearAllPoints()
-        sepFrame:SetPoint("CENTER", CP.segs[i], "RIGHT", 0, 0)
-        sepFrame:SetWidth(cpSeparatorWidth)
-        sepFrame:SetHeight(db.heightCP + (cpBorderSize * 2))
+        local sx = sepX[i] or (segW * i)
+        local sepWidth = cpSeparatorWidth
+        if separatorStyle == "gapline" then
+          if not sepWidth or sepWidth <= 0 then sepWidth = cpGap end
+          if sepWidth > cpGap then sepWidth = cpGap end
+          if pixel then
+            sepWidth = snap(sepWidth)
+          end
+          if cpGap > sepWidth then
+            local offset = (cpGap - sepWidth) / 2
+            if pixel then offset = snap(offset) end
+            sx = sx + offset
+          end
+        end
+        sepFrame:SetPoint("TOPLEFT", CP, "TOPLEFT", sx, 0)
+        sepFrame:SetPoint("BOTTOMLEFT", CP, "BOTTOMLEFT", sx, 0)
+        sepFrame:SetWidth(sepWidth)
         if sepFrame.tex then
           sepFrame.tex:SetTexture(separatorColor[1], separatorColor[2], separatorColor[3], separatorColor[4] or 1)
         end
@@ -315,7 +403,7 @@ local function layout()
     end
   end
 
-  applyBorder(EnergyBorder, db.energyBorderSize or 0, db.energyBorderColor or (SCE.defaults and SCE.defaults.energyBorderColor) or {0,0,0,1})
+  applyBorder(EnergyBorder, energyBorderSize, db.energyBorderColor or (SCE.defaults and SCE.defaults.energyBorderColor) or {0,0,0,1})
   applyBorder(CPBorder, cpBorderSize, db.cpBorderColor or (SCE.defaults and SCE.defaults.cpBorderColor) or {0,0,0,1})
 end
 
@@ -335,7 +423,8 @@ end
 local function applyColors()
   local db = StupidComboEnergyDB
   setColor(UI.bg, db.frameBg)
-  setColor(Energy.bg, db.energyBg)
+  local energyEmpty = db.energyEmpty or (SCE.defaults and SCE.defaults.energyEmpty) or { 0, 0, 0, 0.7 }
+  setColor(Energy.bg, energyEmpty)
   setBarColor(Energy, db.energyStyle, db.energyFill, db.energyFill2)
   if db.energyTextColor then
     Energy.text:SetTextColor(db.energyTextColor[1], db.energyTextColor[2], db.energyTextColor[3], db.energyTextColor[4] or 1)
@@ -345,8 +434,15 @@ local function applyColors()
     setColor(seg.bg, db.cpEmpty)
     setBarColor(seg, db.cpStyle, db.cpFill, db.cpFill2)
   end
-  applyBorder(EnergyBorder, db.energyBorderSize or 0, db.energyBorderColor or (SCE.defaults and SCE.defaults.energyBorderColor) or {0,0,0,1})
-  applyBorder(CPBorder, db.cpBorderSize or 0, db.cpBorderColor or (SCE.defaults and SCE.defaults.cpBorderColor) or {0,0,0,1})
+  local pixel = (SCE.getPerfectPixel and SCE.getPerfectPixel()) or nil
+  local energyBorderSize = db.energyBorderSize or 0
+  local cpBorderSize = db.cpBorderSize or 0
+  if pixel and SCE.snapToPixel then
+    energyBorderSize = SCE.snapToPixel(energyBorderSize, pixel)
+    cpBorderSize = SCE.snapToPixel(cpBorderSize, pixel)
+  end
+  applyBorder(EnergyBorder, energyBorderSize, db.energyBorderColor or (SCE.defaults and SCE.defaults.energyBorderColor) or {0,0,0,1})
+  applyBorder(CPBorder, cpBorderSize, db.cpBorderColor or (SCE.defaults and SCE.defaults.cpBorderColor) or {0,0,0,1})
 end
 
 local function applyFonts()
