@@ -11,6 +11,18 @@ local function setComboPoints(cp)
   
   if not CP or not CP.segs then return end
 
+  if pfUI and pfUI.combopoints then
+    for i = 1, 5 do
+      local f = pfUI.combopoints[i] or _G["pfCombo" .. i]
+      if f then
+        f:Hide()
+        if f.SetScript then
+          f:SetScript("OnShow", function() this:Hide() end)
+        end
+      end
+    end
+  end
+
   local db = StupidComboEnergyDB or {}
   local mode = db.cpColorMode or "unified"
   local showOnlyActive = (db.showOnlyActiveCombo == "1" and db.hideComboWhenEmpty == "1")

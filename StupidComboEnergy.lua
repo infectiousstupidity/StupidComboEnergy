@@ -41,10 +41,30 @@ local function init()
     rawDebug("setLocked missing")
   end
 
-  -- Set up energy bar scripts after layout creates the frames
-  if SCE.setupEnergyScripts then
-    SCE.setupEnergyScripts()
-    rawDebug("Energy scripts set")
+  -- Set up power bar scripts after layout creates the frames
+  if SCE.setupPowerScripts then
+    SCE.setupPowerScripts()
+    rawDebug("Power scripts set")
+  end
+  if SCE.setupHealthScripts then
+    SCE.setupHealthScripts()
+    rawDebug("Health scripts set")
+  end
+  if SCE.setupPowerScripts then
+    SCE.setupPowerScripts()
+    rawDebug("Power scripts set")
+  end
+  if SCE.setupDruidManaScripts then
+    SCE.setupDruidManaScripts()
+    rawDebug("Druid mana scripts set")
+  end
+  if SCE.setupShiftIndicatorScripts then
+    SCE.setupShiftIndicatorScripts()
+    rawDebug("Shift indicator scripts set")
+  end
+  if SCE.setupCastbarScripts then
+    SCE.setupCastbarScripts()
+    rawDebug("Castbar scripts set")
   end
 
   local UI = SCE.UI
@@ -55,18 +75,18 @@ local function init()
     rawDebug("UI missing")
   end
 
-  local Energy = SCE.Energy
-  if Energy then
-    Energy:RegisterEvent("PLAYER_ENTERING_WORLD")
-    Energy:RegisterEvent("PLAYER_TARGET_CHANGED")
-    Energy:RegisterEvent("UNIT_COMBO_POINTS")
-    Energy:RegisterEvent("PLAYER_AURAS_CHANGED")
-    Energy:RegisterEvent("UNIT_DISPLAYPOWER")
-    Energy:RegisterEvent("UNIT_MANA")
-    Energy:RegisterEvent("UNIT_ENERGY")
-    rawDebug("Energy events registered")
+  local Power = SCE.Power
+  if Power then
+    Power:RegisterEvent("PLAYER_ENTERING_WORLD")
+    Power:RegisterEvent("PLAYER_TARGET_CHANGED")
+    Power:RegisterEvent("UNIT_COMBO_POINTS")
+    Power:RegisterEvent("PLAYER_AURAS_CHANGED")
+    Power:RegisterEvent("UNIT_DISPLAYPOWER")
+    Power:RegisterEvent("UNIT_MANA")
+    Power:RegisterEvent("UNIT_ENERGY")
+    rawDebug("Power events registered")
   else
-    rawDebug("Energy frame missing")
+    rawDebug("Power frame missing")
   end
 
   if SCE.updateAll then
@@ -83,11 +103,17 @@ end
 SCE.init = init
 
 local Loader = CreateFrame("Frame")
+if Loader.SetFrameStrata then
+  Loader:SetFrameStrata("MEDIUM")
+end
+if Loader.SetFrameLevel then
+  Loader:SetFrameLevel(1)
+end
 Loader:RegisterEvent("VARIABLES_LOADED")
 Loader:SetScript("OnEvent", function()
   if event ~= "VARIABLES_LOADED" then return end
   rawDebug("VARIABLES_LOADED")
-  local mods = { "defaults", "layout", "energytick", "combopoints", "gui", "commands" }
+  local mods = { "defaults", "layout", "healthbar", "powerbar", "druidmana", "shapeshiftindicator", "castbar", "combopoints", "gui", "commands" }
   for i = 1, table.getn(mods) do
     local name = mods[i]
     if SCE._moduleLoaded and SCE._moduleLoaded[name] then

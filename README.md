@@ -1,2 +1,2 @@
 # StupidComboEnergy
-Stupid combo point tracker and energy bar
+Stupid combo point tracker and power bar

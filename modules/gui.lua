@@ -145,7 +145,10 @@ local function showReloadPopup()
     ReloadPrompt:SetWidth(320)
     ReloadPrompt:SetHeight(120)
     ReloadPrompt:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-    ReloadPrompt:SetFrameStrata("DIALOG")
+    ReloadPrompt:SetFrameStrata("MEDIUM")
+    if ReloadPrompt.SetFrameLevel then
+      ReloadPrompt:SetFrameLevel(3)
+    end
     if ReloadPrompt.SetBackdrop then
       ReloadPrompt:SetBackdrop({
         bgFile = "Interface\\Tooltips\\UI-Tooltip-Background",
@@ -551,8 +554,8 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
   
   -- Menu frame
   local menuframe = CreateFrame("Frame", newName("SCEMenu"), UIParent)
-  menuframe:SetFrameStrata("FULLSCREEN_DIALOG")
-  menuframe:SetFrameLevel(1000)
+  menuframe:SetFrameStrata("MEDIUM")
+  menuframe:SetFrameLevel(5)
   menuframe.elements = {}
   menuframe:Hide()
   createSimpleBackdrop(menuframe)
@@ -563,11 +566,18 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
   btn.setter = setter
   btn.requiresReload = requiresReload
   
+  local function getValueLabel(item)
+    if type(item) == "table" then
+      return item.value, item.label or item.value
+    end
+    return item, item
+  end
+
   -- Helper to create menu item function (fixes Lua 5.0 closure issue)
-  local function makeMenuFunc(value)
+  local function makeMenuFunc(value, labelText)
     return function()
       btn.setter(value)
-      btn.selText:SetText(value)
+      btn.selText:SetText(labelText)
       btn.menuframe:Hide()
       if btn.requiresReload then
         triggerReloadNeeded()
@@ -591,6 +601,7 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
     -- Create menu entries
     local currentVal = btn.getter()
     for i, v in ipairs(btn.values) do
+      local value, labelText = getValueLabel(v)
       local entry = menuframe.elements[i]
       if not entry then
         entry = CreateFrame("Button", nil, menuframe)
@@ -624,10 +635,10 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
       entry:ClearAllPoints()
       entry:SetPoint("TOPLEFT", menuframe, "TOPLEFT", 2, -(i-1)*20 - 2)
       entry:SetPoint("TOPRIGHT", menuframe, "TOPRIGHT", -2, -(i-1)*20 - 2)
-      entry.text:SetText(v)
-      entry:SetScript("OnClick", makeMenuFunc(v))
+      entry.text:SetText(labelText)
+      entry:SetScript("OnClick", makeMenuFunc(value, labelText))
       
-      if v == currentVal then
+      if value == currentVal then
         entry.check:Show()
       else
         entry.check:Hide()
@@ -664,7 +675,15 @@ local function addCycleField(panel, label, values, getter, setter, y, requiresRe
   
   local function apply()
     local val = getter()
-    btn.selText:SetText(val or "")
+    local labelText = val
+    for _, v in ipairs(btn.values) do
+      local value, label = getValueLabel(v)
+      if value == val then
+        labelText = label
+        break
+      end
+    end
+    btn.selText:SetText(labelText or "")
   end
   
   apply()
@@ -733,8 +752,8 @@ local function addFontField(panel, label, getter, setter, y, requiresReload)
   btn.selText = selText
   
   local menuframe = CreateFrame("Frame", newName("SCEMenu"), UIParent)
-  menuframe:SetFrameStrata("FULLSCREEN_DIALOG")
-  menuframe:SetFrameLevel(1000)
+  menuframe:SetFrameStrata("MEDIUM")
+  menuframe:SetFrameLevel(5)
   menuframe.elements = {}
   menuframe:Hide()
   createSimpleBackdrop(menuframe)
@@ -1013,42 +1032,6 @@ local function showConfigPanel(name)
   end
 end
 
-local function buildEnergyPanel(parent)
-  local y = -20
-  y = addBoolField(parent, "Enable Energy Bar", "showEnergyBar", y)
-  y = addBoolField(parent, "Grouped Mode", "grouped", y)
-  y = addBoolField(parent, "Energy First (grouped)", "energyFirst", y)
-  y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.x end, function(v) StupidComboEnergyDB.x = v end, y)
-  y = addNumberField(parent, "Position Y", function() return StupidComboEnergyDB.y end, function(v) StupidComboEnergyDB.y = v end, y)
-  y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.width end, function(v) StupidComboEnergyDB.width = v end, y)
-  y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.heightEnergy end, function(v) StupidComboEnergyDB.heightEnergy = v end, y)
-  y = addNumberField(parent, "Gap (when grouped)", function() return StupidComboEnergyDB.gap end, function(v) StupidComboEnergyDB.gap = v end, y)
-  y = addBoolField(parent, "Gap Line (grouped)", "groupGapLine", y)
-  y = addNumberField(parent, "Gap Line Size (0=auto)", function() return StupidComboEnergyDB.groupGapLineSize end, function(v) StupidComboEnergyDB.groupGapLineSize = v end, y)
-  y = addColorField(parent, "Gap Line Color", function() return StupidComboEnergyDB.groupGapLineColor end, function(c) StupidComboEnergyDB.groupGapLineColor = c end, y)
-  y = addCycleField(parent, "Frame Strata", {"BACKGROUND","LOW","MEDIUM","HIGH","DIALOG","FULLSCREEN","FULLSCREEN_DIALOG","TOOLTIP"}, function() return StupidComboEnergyDB.frameStrata end, function(v) StupidComboEnergyDB.frameStrata = v end, y)
-  y = addNumberField(parent, "Frame Level", function() return StupidComboEnergyDB.frameLevel end, function(v) StupidComboEnergyDB.frameLevel = v end, y)
-  y = addCycleField(parent, "Bar Style", {"solid","gradient"}, function() return StupidComboEnergyDB.energyStyle end, function(v) StupidComboEnergyDB.energyStyle = v end, y)
-  y = addColorField(parent, "Fill Color", function() return StupidComboEnergyDB.energyFill end, function(c) StupidComboEnergyDB.energyFill = c end, y)
-  y = addColorField(parent, "Gradient Color", function() return StupidComboEnergyDB.energyFill2 end, function(c) StupidComboEnergyDB.energyFill2 = c end, y)
-  y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.energyEmpty end, function(c) StupidComboEnergyDB.energyEmpty = c end, y)
-  y = addColorField(parent, "Rage Fill Color", function() return StupidComboEnergyDB.rageFill end, function(c) StupidComboEnergyDB.rageFill = c end, y)
-  y = addColorField(parent, "Rage Gradient Color", function() return StupidComboEnergyDB.rageFill2 end, function(c) StupidComboEnergyDB.rageFill2 = c end, y)
-  y = addColorField(parent, "Rage Empty Color", function() return StupidComboEnergyDB.rageEmpty end, function(c) StupidComboEnergyDB.rageEmpty = c end, y)
-  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.energyBorderSize end, function(v) StupidComboEnergyDB.energyBorderSize = v end, y)
-  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.energyBorderColor end, function(c) StupidComboEnergyDB.energyBorderColor = c end, y)
-  y = addBoolField(parent, "Show Energy Ticker", "showEnergyTicker", y)
-  y = addBoolField(parent, "Ticker Glow Effect", "energyTickerGlow", y)
-  y = addNumberField(parent, "Ticker Width", function() return StupidComboEnergyDB.energyTickerWidth end, function(v) StupidComboEnergyDB.energyTickerWidth = v end, y)
-  y = addColorField(parent, "Ticker Color", function() return StupidComboEnergyDB.energyTickerColor end, function(c) StupidComboEnergyDB.energyTickerColor = c end, y)
-  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.energyTextFont end, function(v) StupidComboEnergyDB.energyTextFont = v end, y, true)
-  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.energyTextSize end, function(v) StupidComboEnergyDB.energyTextSize = v end, y)
-  y = addColorField(parent, "Font Color", function() return StupidComboEnergyDB.energyTextColor end, function(c) StupidComboEnergyDB.energyTextColor = c end, y)
-  y = addNumberField(parent, "Font Offset X", function() return StupidComboEnergyDB.energyTextOffsetX end, function(v) StupidComboEnergyDB.energyTextOffsetX = v end, y)
-  y = addNumberField(parent, "Font Offset Y", function() return StupidComboEnergyDB.energyTextOffsetY end, function(v) StupidComboEnergyDB.energyTextOffsetY = v end, y)
-  return y
-end
-
 local function buildComboPanel(parent)
   local y = -20
   y = addBoolField(parent, "Enable Combo Bar", "showComboBar", y)
@@ -1073,6 +1056,238 @@ local function buildComboPanel(parent)
   y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.cpEmpty end, function(c) StupidComboEnergyDB.cpEmpty = c end, y)
   y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.cpBorderSize end, function(v) StupidComboEnergyDB.cpBorderSize = v end, y)
   y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.cpBorderColor end, function(c) StupidComboEnergyDB.cpBorderColor = c end, y)
+  return y
+end
+
+local function buildHealthPanel(parent)
+  local healthTextOptions = {
+    { value = "none", label = "Disable" },
+    { value = "healthdyn", label = "Health - Auto" },
+    { value = "health", label = "Health - Current" },
+    { value = "healthmax", label = "Health - Max" },
+    { value = "healthperc", label = "Health - Percentage" },
+    { value = "healthmiss", label = "Health - Missing" },
+    { value = "healthminmax", label = "Health - Min/Max" },
+    { value = "healthminmaxperc", label = "Health - Min/Max | Percent" },
+  }
+  local y = -20
+  y = addBoolField(parent, "Enable Health Bar", "showHealthBar", y)
+  y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.healthX end, function(v) StupidComboEnergyDB.healthX = v end, y)
+  y = addNumberField(parent, "Position Y", function() return StupidComboEnergyDB.healthY end, function(v) StupidComboEnergyDB.healthY = v end, y)
+  y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.healthWidth end, function(v) StupidComboEnergyDB.healthWidth = v end, y)
+  y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.healthHeight end, function(v) StupidComboEnergyDB.healthHeight = v end, y)
+  y = addCycleField(parent, "Left Text", healthTextOptions, function() return StupidComboEnergyDB.healthTextLeft end, function(v) StupidComboEnergyDB.healthTextLeft = v end, y)
+  y = addNumberField(parent, "Left Text X Offset", function() return StupidComboEnergyDB.healthTextLeftOffsetX end, function(v) StupidComboEnergyDB.healthTextLeftOffsetX = v end, y)
+  y = addNumberField(parent, "Left Text Y Offset", function() return StupidComboEnergyDB.healthTextLeftOffsetY end, function(v) StupidComboEnergyDB.healthTextLeftOffsetY = v end, y)
+  y = addCycleField(parent, "Center Text", healthTextOptions, function() return StupidComboEnergyDB.healthTextCenter end, function(v) StupidComboEnergyDB.healthTextCenter = v end, y)
+  y = addNumberField(parent, "Center Text X Offset", function() return StupidComboEnergyDB.healthTextCenterOffsetX end, function(v) StupidComboEnergyDB.healthTextCenterOffsetX = v end, y)
+  y = addNumberField(parent, "Center Text Y Offset", function() return StupidComboEnergyDB.healthTextCenterOffsetY end, function(v) StupidComboEnergyDB.healthTextCenterOffsetY = v end, y)
+  y = addCycleField(parent, "Right Text", healthTextOptions, function() return StupidComboEnergyDB.healthTextRight end, function(v) StupidComboEnergyDB.healthTextRight = v end, y)
+  y = addNumberField(parent, "Right Text X Offset", function() return StupidComboEnergyDB.healthTextRightOffsetX end, function(v) StupidComboEnergyDB.healthTextRightOffsetX = v end, y)
+  y = addNumberField(parent, "Right Text Y Offset", function() return StupidComboEnergyDB.healthTextRightOffsetY end, function(v) StupidComboEnergyDB.healthTextRightOffsetY = v end, y)
+  y = addBoolField(parent, "Invert Health Bar", "invertHealthBar", y)
+  y = addBoolField(parent, "Enable Vertical Health Bar", "verticalHealthBar", y)
+  y = addCycleField(parent, "Bar Style", {"solid","gradient"}, function() return StupidComboEnergyDB.healthStyle end, function(v) StupidComboEnergyDB.healthStyle = v end, y)
+  y = addColorField(parent, "Fill Color", function() return StupidComboEnergyDB.healthFill end, function(c) StupidComboEnergyDB.healthFill = c end, y)
+  y = addColorField(parent, "Gradient Color", function() return StupidComboEnergyDB.healthFill2 end, function(c) StupidComboEnergyDB.healthFill2 = c end, y)
+  y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.healthEmpty end, function(c) StupidComboEnergyDB.healthEmpty = c end, y)
+  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.healthBorderSize end, function(v) StupidComboEnergyDB.healthBorderSize = v end, y)
+  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.healthBorderColor end, function(c) StupidComboEnergyDB.healthBorderColor = c end, y)
+  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.healthTextFont end, function(v) StupidComboEnergyDB.healthTextFont = v end, y, true)
+  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.healthTextSize end, function(v) StupidComboEnergyDB.healthTextSize = v end, y)
+  y = addColorField(parent, "Font Color", function() return StupidComboEnergyDB.healthTextColor end, function(c) StupidComboEnergyDB.healthTextColor = c end, y)
+  return y
+end
+
+local function buildPowerPanel(parent)
+  local manaTextOptions = {
+    { value = "none", label = "Disable" },
+    { value = "powerdyn", label = "Mana - Auto" },
+    { value = "power", label = "Mana - Current" },
+    { value = "powermax", label = "Mana - Max" },
+    { value = "powerperc", label = "Mana - Percentage" },
+    { value = "powermiss", label = "Mana - Missing" },
+    { value = "powerminmax", label = "Mana - Min/Max" },
+  }
+  local energyTextOptions = {
+    { value = "none", label = "Disable" },
+    { value = "powerdyn", label = "Energy - Auto" },
+    { value = "power", label = "Energy - Current" },
+    { value = "powermax", label = "Energy - Max" },
+    { value = "powerperc", label = "Energy - Percentage" },
+    { value = "powermiss", label = "Energy - Missing" },
+    { value = "powerminmax", label = "Energy - Min/Max" },
+  }
+  local rageTextOptions = {
+    { value = "none", label = "Disable" },
+    { value = "powerdyn", label = "Rage - Auto" },
+    { value = "power", label = "Rage - Current" },
+    { value = "powermax", label = "Rage - Max" },
+    { value = "powerperc", label = "Rage - Percentage" },
+    { value = "powermiss", label = "Rage - Missing" },
+    { value = "powerminmax", label = "Rage - Min/Max" },
+  }
+  local y = -20
+  y = addBoolField(parent, "Enable Power Bar", "showPowerBar", y)
+  y = addBoolField(parent, "Grouped Layout", "grouped", y)
+  y = addBoolField(parent, "Power Above Combo", "powerFirst", y)
+  y = addNumberField(parent, "Group Gap", function() return StupidComboEnergyDB.gap end, function(v) StupidComboEnergyDB.gap = v end, y)
+  y = addBoolField(parent, "Gap Line Between Power + Combo", "groupGapLine", y)
+  y = addNumberField(parent, "Gap Line Size (0 = auto)", function() return StupidComboEnergyDB.groupGapLineSize end, function(v) StupidComboEnergyDB.groupGapLineSize = v end, y)
+  y = addColorField(parent, "Gap Line Color", function() return StupidComboEnergyDB.groupGapLineColor end, function(c) StupidComboEnergyDB.groupGapLineColor = c end, y)
+  y = addBoolField(parent, "Show When Not Energy/Rage", "showWhenNotPower", y)
+  y = addNumberField(parent, "Alpha When Not Energy/Rage", function() return StupidComboEnergyDB.notPowerAlpha end, function(v) StupidComboEnergyDB.notPowerAlpha = v end, y)
+  y = addCycleField(parent, "Power Bar Anchor", {
+    { value = "LEFT", label = "Left" },
+    { value = "CENTER", label = "Center" },
+    { value = "RIGHT", label = "Right" },
+  }, function() return StupidComboEnergyDB.powerAnchor end, function(v) StupidComboEnergyDB.powerAnchor = v end, y)
+  y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.powerX end, function(v) StupidComboEnergyDB.powerX = v end, y)
+  y = addNumberField(parent, "Position Y", function() return StupidComboEnergyDB.powerY end, function(v) StupidComboEnergyDB.powerY = v end, y)
+  y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.powerWidth end, function(v) StupidComboEnergyDB.powerWidth = v end, y)
+  y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.powerHeight end, function(v) StupidComboEnergyDB.powerHeight = v end, y)
+  y = addCycleField(parent, "Mana Left Text", manaTextOptions, function() return StupidComboEnergyDB.powerTextLeftMana end, function(v) StupidComboEnergyDB.powerTextLeftMana = v end, y)
+  y = addNumberField(parent, "Left Text X Offset", function() return StupidComboEnergyDB.powerTextLeftOffsetX end, function(v) StupidComboEnergyDB.powerTextLeftOffsetX = v end, y)
+  y = addNumberField(parent, "Left Text Y Offset", function() return StupidComboEnergyDB.powerTextLeftOffsetY end, function(v) StupidComboEnergyDB.powerTextLeftOffsetY = v end, y)
+  y = addCycleField(parent, "Mana Center Text", manaTextOptions, function() return StupidComboEnergyDB.powerTextCenterMana end, function(v) StupidComboEnergyDB.powerTextCenterMana = v end, y)
+  y = addNumberField(parent, "Center Text X Offset", function() return StupidComboEnergyDB.powerTextCenterOffsetX end, function(v) StupidComboEnergyDB.powerTextCenterOffsetX = v end, y)
+  y = addNumberField(parent, "Center Text Y Offset", function() return StupidComboEnergyDB.powerTextCenterOffsetY end, function(v) StupidComboEnergyDB.powerTextCenterOffsetY = v end, y)
+  y = addCycleField(parent, "Mana Right Text", manaTextOptions, function() return StupidComboEnergyDB.powerTextRightMana end, function(v) StupidComboEnergyDB.powerTextRightMana = v end, y)
+  y = addNumberField(parent, "Right Text X Offset", function() return StupidComboEnergyDB.powerTextRightOffsetX end, function(v) StupidComboEnergyDB.powerTextRightOffsetX = v end, y)
+  y = addNumberField(parent, "Right Text Y Offset", function() return StupidComboEnergyDB.powerTextRightOffsetY end, function(v) StupidComboEnergyDB.powerTextRightOffsetY = v end, y)
+  y = addCycleField(parent, "Energy Left Text", energyTextOptions, function() return StupidComboEnergyDB.powerTextLeftEnergy end, function(v) StupidComboEnergyDB.powerTextLeftEnergy = v end, y)
+  y = addCycleField(parent, "Energy Center Text", energyTextOptions, function() return StupidComboEnergyDB.powerTextCenterEnergy end, function(v) StupidComboEnergyDB.powerTextCenterEnergy = v end, y)
+  y = addCycleField(parent, "Energy Right Text", energyTextOptions, function() return StupidComboEnergyDB.powerTextRightEnergy end, function(v) StupidComboEnergyDB.powerTextRightEnergy = v end, y)
+  y = addCycleField(parent, "Rage Left Text", rageTextOptions, function() return StupidComboEnergyDB.powerTextLeftRage end, function(v) StupidComboEnergyDB.powerTextLeftRage = v end, y)
+  y = addCycleField(parent, "Rage Center Text", rageTextOptions, function() return StupidComboEnergyDB.powerTextCenterRage end, function(v) StupidComboEnergyDB.powerTextCenterRage = v end, y)
+  y = addCycleField(parent, "Rage Right Text", rageTextOptions, function() return StupidComboEnergyDB.powerTextRightRage end, function(v) StupidComboEnergyDB.powerTextRightRage = v end, y)
+  y = addCycleField(parent, "Bar Style", {"solid","gradient"}, function() return StupidComboEnergyDB.powerStyle end, function(v) StupidComboEnergyDB.powerStyle = v end, y)
+  y = addColorField(parent, "Energy Fill Color", function() return StupidComboEnergyDB.powerFill end, function(c) StupidComboEnergyDB.powerFill = c end, y)
+  y = addColorField(parent, "Energy Gradient Color", function() return StupidComboEnergyDB.powerFill2 end, function(c) StupidComboEnergyDB.powerFill2 = c end, y)
+  y = addColorField(parent, "Energy Empty Color", function() return StupidComboEnergyDB.powerEmpty end, function(c) StupidComboEnergyDB.powerEmpty = c end, y)
+  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.powerBorderSize end, function(v) StupidComboEnergyDB.powerBorderSize = v end, y)
+  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.powerBorderColor end, function(c) StupidComboEnergyDB.powerBorderColor = c end, y)
+  y = addColorField(parent, "Mana Fill Color", function() return StupidComboEnergyDB.manaFill end, function(c) StupidComboEnergyDB.manaFill = c end, y)
+  y = addColorField(parent, "Mana Gradient Color", function() return StupidComboEnergyDB.manaFill2 end, function(c) StupidComboEnergyDB.manaFill2 = c end, y)
+  y = addColorField(parent, "Mana Empty Color", function() return StupidComboEnergyDB.manaEmpty end, function(c) StupidComboEnergyDB.manaEmpty = c end, y)
+  y = addColorField(parent, "Rage Fill Color", function() return StupidComboEnergyDB.rageFill end, function(c) StupidComboEnergyDB.rageFill = c end, y)
+  y = addColorField(parent, "Rage Gradient Color", function() return StupidComboEnergyDB.rageFill2 end, function(c) StupidComboEnergyDB.rageFill2 = c end, y)
+  y = addColorField(parent, "Rage Empty Color", function() return StupidComboEnergyDB.rageEmpty end, function(c) StupidComboEnergyDB.rageEmpty = c end, y)
+  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.powerTextFont end, function(v) StupidComboEnergyDB.powerTextFont = v end, y, true)
+  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.powerTextSize end, function(v) StupidComboEnergyDB.powerTextSize = v end, y)
+  y = addColorField(parent, "Font Color", function() return StupidComboEnergyDB.powerTextColor end, function(c) StupidComboEnergyDB.powerTextColor = c end, y)
+  y = addBoolField(parent, "Show Power Ticker", "showPowerTicker", y)
+  y = addColorField(parent, "Ticker Color", function() return StupidComboEnergyDB.powerTickerColor end, function(c) StupidComboEnergyDB.powerTickerColor = c end, y)
+  y = addBoolField(parent, "Ticker Glow", "powerTickerGlow", y)
+  y = addNumberField(parent, "Ticker Width", function() return StupidComboEnergyDB.powerTickerWidth end, function(v) StupidComboEnergyDB.powerTickerWidth = v end, y)
+  y = addNumberField(parent, "Tick Seconds", function() return StupidComboEnergyDB.powerTickSeconds end, function(v) StupidComboEnergyDB.powerTickSeconds = v end, y)
+  return y
+end
+
+local function buildDruidManaPanel(parent)
+  local manaTextOptions = {
+    { value = "none", label = "Disable" },
+    { value = "powerdyn", label = "Mana - Auto" },
+    { value = "power", label = "Mana - Current" },
+    { value = "powermax", label = "Mana - Max" },
+    { value = "powerperc", label = "Mana - Percentage" },
+    { value = "powermiss", label = "Mana - Missing" },
+    { value = "powerminmax", label = "Mana - Min/Max" },
+  }
+  local y = -20
+  y = addBoolField(parent, "Enable Druid Mana Bar", "showDruidManaBar", y)
+  y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.druidManaX end, function(v) StupidComboEnergyDB.druidManaX = v end, y)
+  y = addNumberField(parent, "Position Y", function() return StupidComboEnergyDB.druidManaY end, function(v) StupidComboEnergyDB.druidManaY = v end, y)
+  y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.druidManaWidth end, function(v) StupidComboEnergyDB.druidManaWidth = v end, y)
+  y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.druidManaHeight end, function(v) StupidComboEnergyDB.druidManaHeight = v end, y)
+  y = addCycleField(parent, "Left Text", manaTextOptions, function() return StupidComboEnergyDB.druidManaTextLeft end, function(v) StupidComboEnergyDB.druidManaTextLeft = v end, y)
+  y = addNumberField(parent, "Left Text X Offset", function() return StupidComboEnergyDB.druidManaTextLeftOffsetX end, function(v) StupidComboEnergyDB.druidManaTextLeftOffsetX = v end, y)
+  y = addNumberField(parent, "Left Text Y Offset", function() return StupidComboEnergyDB.druidManaTextLeftOffsetY end, function(v) StupidComboEnergyDB.druidManaTextLeftOffsetY = v end, y)
+  y = addCycleField(parent, "Center Text", manaTextOptions, function() return StupidComboEnergyDB.druidManaTextCenter end, function(v) StupidComboEnergyDB.druidManaTextCenter = v end, y)
+  y = addNumberField(parent, "Center Text X Offset", function() return StupidComboEnergyDB.druidManaTextCenterOffsetX end, function(v) StupidComboEnergyDB.druidManaTextCenterOffsetX = v end, y)
+  y = addNumberField(parent, "Center Text Y Offset", function() return StupidComboEnergyDB.druidManaTextCenterOffsetY end, function(v) StupidComboEnergyDB.druidManaTextCenterOffsetY = v end, y)
+  y = addCycleField(parent, "Right Text", manaTextOptions, function() return StupidComboEnergyDB.druidManaTextRight end, function(v) StupidComboEnergyDB.druidManaTextRight = v end, y)
+  y = addNumberField(parent, "Right Text X Offset", function() return StupidComboEnergyDB.druidManaTextRightOffsetX end, function(v) StupidComboEnergyDB.druidManaTextRightOffsetX = v end, y)
+  y = addNumberField(parent, "Right Text Y Offset", function() return StupidComboEnergyDB.druidManaTextRightOffsetY end, function(v) StupidComboEnergyDB.druidManaTextRightOffsetY = v end, y)
+  y = addCycleField(parent, "Bar Style", {"solid","gradient"}, function() return StupidComboEnergyDB.druidManaStyle end, function(v) StupidComboEnergyDB.druidManaStyle = v end, y)
+  y = addColorField(parent, "Fill Color", function() return StupidComboEnergyDB.druidManaFill end, function(c) StupidComboEnergyDB.druidManaFill = c end, y)
+  y = addColorField(parent, "Gradient Color", function() return StupidComboEnergyDB.druidManaFill2 end, function(c) StupidComboEnergyDB.druidManaFill2 = c end, y)
+  y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.druidManaEmpty end, function(c) StupidComboEnergyDB.druidManaEmpty = c end, y)
+  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.druidManaBorderSize end, function(v) StupidComboEnergyDB.druidManaBorderSize = v end, y)
+  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.druidManaBorderColor end, function(c) StupidComboEnergyDB.druidManaBorderColor = c end, y)
+  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.druidManaTextFont end, function(v) StupidComboEnergyDB.druidManaTextFont = v end, y, true)
+  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.druidManaTextSize end, function(v) StupidComboEnergyDB.druidManaTextSize = v end, y)
+  y = addColorField(parent, "Font Color", function() return StupidComboEnergyDB.druidManaTextColor end, function(c) StupidComboEnergyDB.druidManaTextColor = c end, y)
+  return y
+end
+
+local function buildShiftIndicatorPanel(parent)
+  local attachOptions = {
+    { value = "health", label = "Health Bar" },
+    { value = "power", label = "Power Bar" },
+    { value = "druidmana", label = "Druid Mana Bar" },
+    { value = "healthpower", label = "Health + Power" },
+    { value = "healthdruid", label = "Health + Druid Mana" },
+    { value = "powerdruid", label = "Power + Druid Mana" },
+    { value = "healthpowerdruid", label = "Health + Power + Druid Mana" },
+  }
+  local anchorOptions = {
+    { value = "LEFT", label = "Left" },
+    { value = "RIGHT", label = "Right" },
+  }
+  local iconOptions = {
+    { value = "bear", label = "Bear Form" },
+    { value = "cat", label = "Cat Form" },
+    { value = "current", label = "Current Form" },
+    { value = "custom", label = "Custom" },
+  }
+  local y = -20
+  y = addBoolField(parent, "Enable Shift Indicator", "showShiftIndicator", y)
+  y = addCycleField(parent, "Attach To", attachOptions, function() return StupidComboEnergyDB.shiftIndicatorAttach end, function(v) StupidComboEnergyDB.shiftIndicatorAttach = v end, y)
+  y = addCycleField(parent, "Anchor Side", anchorOptions, function() return StupidComboEnergyDB.shiftIndicatorAnchor end, function(v) StupidComboEnergyDB.shiftIndicatorAnchor = v end, y)
+  y = addNumberField(parent, "Size (0 = Auto)", function() return StupidComboEnergyDB.shiftIndicatorSize end, function(v) StupidComboEnergyDB.shiftIndicatorSize = v end, y)
+  y = addNumberField(parent, "Spacing", function() return StupidComboEnergyDB.shiftIndicatorSpacing end, function(v) StupidComboEnergyDB.shiftIndicatorSpacing = v end, y)
+  y = addNumberField(parent, "Offset X", function() return StupidComboEnergyDB.shiftIndicatorOffsetX end, function(v) StupidComboEnergyDB.shiftIndicatorOffsetX = v end, y)
+  y = addNumberField(parent, "Offset Y", function() return StupidComboEnergyDB.shiftIndicatorOffsetY end, function(v) StupidComboEnergyDB.shiftIndicatorOffsetY = v end, y)
+  y = addCycleField(parent, "Icon", iconOptions, function() return StupidComboEnergyDB.shiftIndicatorIconMode end, function(v) StupidComboEnergyDB.shiftIndicatorIconMode = v end, y)
+  y = addTextField(parent, "Custom Icon Path", function() return StupidComboEnergyDB.shiftIndicatorCustomIcon end, function(v) StupidComboEnergyDB.shiftIndicatorCustomIcon = v end, y, 220)
+  y = addBoolField(parent, "Desaturate When Zero", "shiftIndicatorDesaturate", y)
+  y = addBoolField(parent, "Show Zero", "shiftIndicatorShowZero", y)
+  y = addNumberField(parent, "Update Interval", function() return StupidComboEnergyDB.shiftIndicatorUpdateInterval end, function(v) StupidComboEnergyDB.shiftIndicatorUpdateInterval = v end, y)
+  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.shiftIndicatorFont end, function(v) StupidComboEnergyDB.shiftIndicatorFont = v end, y, true)
+  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.shiftIndicatorFontSize end, function(v) StupidComboEnergyDB.shiftIndicatorFontSize = v end, y)
+  y = addColorField(parent, "Font Color", function() return StupidComboEnergyDB.shiftIndicatorTextColor end, function(c) StupidComboEnergyDB.shiftIndicatorTextColor = c end, y)
+  y = addNumberField(parent, "Text Offset X", function() return StupidComboEnergyDB.shiftIndicatorTextOffsetX end, function(v) StupidComboEnergyDB.shiftIndicatorTextOffsetX = v end, y)
+  y = addNumberField(parent, "Text Offset Y", function() return StupidComboEnergyDB.shiftIndicatorTextOffsetY end, function(v) StupidComboEnergyDB.shiftIndicatorTextOffsetY = v end, y)
+  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.shiftIndicatorBorderSize end, function(v) StupidComboEnergyDB.shiftIndicatorBorderSize = v end, y)
+  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.shiftIndicatorBorderColor end, function(c) StupidComboEnergyDB.shiftIndicatorBorderColor = c end, y)
+  return y
+end
+
+local function buildCastbarPanel(parent)
+  local y = -20
+  y = addBoolField(parent, "Enable Castbar", "showCastbar", y)
+  y = addNumberField(parent, "Position X", function() return StupidComboEnergyDB.castbarX end, function(v) StupidComboEnergyDB.castbarX = v end, y)
+  y = addNumberField(parent, "Position Y", function() return StupidComboEnergyDB.castbarY end, function(v) StupidComboEnergyDB.castbarY = v end, y)
+  y = addNumberField(parent, "Width", function() return StupidComboEnergyDB.castbarWidth end, function(v) StupidComboEnergyDB.castbarWidth = v end, y)
+  y = addNumberField(parent, "Height", function() return StupidComboEnergyDB.castbarHeight end, function(v) StupidComboEnergyDB.castbarHeight = v end, y)
+  y = addCycleField(parent, "Bar Style", {"solid","gradient"}, function() return StupidComboEnergyDB.castbarStyle end, function(v) StupidComboEnergyDB.castbarStyle = v end, y)
+  y = addColorField(parent, "Cast Color", function() return StupidComboEnergyDB.castbarFill end, function(c) StupidComboEnergyDB.castbarFill = c end, y)
+  y = addColorField(parent, "Cast Gradient 2", function() return StupidComboEnergyDB.castbarFill2 end, function(c) StupidComboEnergyDB.castbarFill2 = c end, y)
+  y = addColorField(parent, "Channel Color", function() return StupidComboEnergyDB.castbarChannelFill end, function(c) StupidComboEnergyDB.castbarChannelFill = c end, y)
+  y = addColorField(parent, "Channel Gradient 2", function() return StupidComboEnergyDB.castbarChannelFill2 end, function(c) StupidComboEnergyDB.castbarChannelFill2 = c end, y)
+  y = addColorField(parent, "Empty Color", function() return StupidComboEnergyDB.castbarEmpty end, function(c) StupidComboEnergyDB.castbarEmpty = c end, y)
+  y = addNumberField(parent, "Border Size", function() return StupidComboEnergyDB.castbarBorderSize end, function(v) StupidComboEnergyDB.castbarBorderSize = v end, y)
+  y = addColorField(parent, "Border Color", function() return StupidComboEnergyDB.castbarBorderColor end, function(c) StupidComboEnergyDB.castbarBorderColor = c end, y)
+  y = addBoolField(parent, "Show Icon", "castbarShowIcon", y)
+  y = addBoolField(parent, "Show Spell Name", "castbarShowSpell", y)
+  y = addBoolField(parent, "Show Timer", "castbarShowTime", y)
+  y = addBoolField(parent, "Show Lag Zone", "castbarShowLag", y)
+  y = addColorField(parent, "Lag Zone Color", function() return StupidComboEnergyDB.castbarLagColor end, function(c) StupidComboEnergyDB.castbarLagColor = c end, y)
+  y = addFontField(parent, "Font", function() return StupidComboEnergyDB.castbarTextFont end, function(v) StupidComboEnergyDB.castbarTextFont = v end, y, true)
+  y = addNumberField(parent, "Font Size", function() return StupidComboEnergyDB.castbarTextSize end, function(v) StupidComboEnergyDB.castbarTextSize = v end, y)
+  y = addColorField(parent, "Spell Text Color", function() return StupidComboEnergyDB.castbarTextColor end, function(c) StupidComboEnergyDB.castbarTextColor = c end, y)
+  y = addColorField(parent, "Time Text Color", function() return StupidComboEnergyDB.castbarTimeColor end, function(c) StupidComboEnergyDB.castbarTimeColor = c end, y)
   return y
 end
 
@@ -1163,7 +1378,10 @@ local function buildConfigFrame()
   ConfigFrame:SetWidth(720)
   ConfigFrame:SetHeight(430)
   ConfigFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-  ConfigFrame:SetFrameStrata("DIALOG")
+  ConfigFrame:SetFrameStrata("MEDIUM")
+  if ConfigFrame.SetFrameLevel then
+    ConfigFrame:SetFrameLevel(2)
+  end
   ConfigFrame:SetMovable(true)
   ConfigFrame:EnableMouse(true)
   ConfigFrame:RegisterForDrag("LeftButton")
@@ -1225,10 +1443,22 @@ local function buildConfigFrame()
     db.x = defaults.x
     db.y = defaults.y
     -- Reset separate positions
-    db.energyPoint = defaults.energyPoint
-    db.energyRelativePoint = defaults.energyRelativePoint
-    db.energyX = defaults.energyX
-    db.energyY = defaults.energyY
+    db.healthPoint = defaults.healthPoint
+    db.healthRelativePoint = defaults.healthRelativePoint
+    db.healthX = defaults.healthX
+    db.healthY = defaults.healthY
+    db.powerPoint = defaults.powerPoint
+    db.powerRelativePoint = defaults.powerRelativePoint
+    db.powerX = defaults.powerX
+    db.powerY = defaults.powerY
+    db.druidManaPoint = defaults.druidManaPoint
+    db.druidManaRelativePoint = defaults.druidManaRelativePoint
+    db.druidManaX = defaults.druidManaX
+    db.druidManaY = defaults.druidManaY
+    db.castbarPoint = defaults.castbarPoint
+    db.castbarRelativePoint = defaults.castbarRelativePoint
+    db.castbarX = defaults.castbarX
+    db.castbarY = defaults.castbarY
     db.cpPoint = defaults.cpPoint
     db.cpRelativePoint = defaults.cpRelativePoint
     db.cpX = defaults.cpX
@@ -1407,8 +1637,12 @@ local function buildConfigFrame()
 
   addMenuButton("About", "about", buildAboutPanel, 1)
   addMenuButton("Settings", "settings", buildSettingsPanel, 2)
-  addMenuButton("Energy Bar", "energy", buildEnergyPanel, 3)
-  addMenuButton("Combo Points", "combo", buildComboPanel, 4)
+  addMenuButton("Health Bar", "health", buildHealthPanel, 3)
+  addMenuButton("Power Bar", "power", buildPowerPanel, 4)
+  addMenuButton("Druid Mana", "druidmana", buildDruidManaPanel, 5)
+  addMenuButton("Combo Points", "combo", buildComboPanel, 6)
+  addMenuButton("Castbar", "castbar", buildCastbarPanel, 7)
+  addMenuButton("Shift Indicator", "shiftindicator", buildShiftIndicatorPanel, 8)
 
   showConfigPanel("about")
   SCE.ConfigFrame = ConfigFrame

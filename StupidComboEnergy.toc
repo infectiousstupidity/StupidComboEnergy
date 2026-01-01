@@ -1,6 +1,6 @@
 ## Interface: 11200
 ## Title: [Stupid]ComboEnergy
-## Notes: Smooth energy bar + combo point segments
+## Notes: Smooth power bar + combo point segments
 ## Author: stupid
 ## Version: 1.0.0
 ## OptionalDeps: pfUI
@@ -8,7 +8,11 @@
 
 modules\defaults.lua
 modules\layout.lua
-modules\energytick.lua
+modules\healthbar.lua
+modules\powerbar.lua
+modules\druidmana.lua
+modules\shapeshiftindicator.lua
+modules\castbar.lua
 modules\combopoints.lua
 modules\gui.lua
 modules\commands.lua
