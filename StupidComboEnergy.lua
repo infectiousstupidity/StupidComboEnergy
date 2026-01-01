@@ -16,7 +16,6 @@ local function rawDebug(msg)
 end
 
 if not SCE.debugMsg then
-  SCE.debugEnabled = true
   SCE.debugMsg = rawDebug
 end
 

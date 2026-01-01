@@ -1090,11 +1090,11 @@ local function buildAboutPanel(parent)
   local title = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOP", parent, "TOP", 0, -40)
   if pfUI and pfUI.font_default then
-    title:SetFont(pfUI.font_default, 48, "OUTLINE")
+    title:SetFont(pfUI.font_default, 28, "OUTLINE")
   else
-    title:SetFont("Fonts\\FRIZQT__.TTF", 48, "OUTLINE")
+    title:SetFont("Fonts\\FRIZQT__.TTF", 28, "OUTLINE")
   end
-  title:SetText("SCE")
+  title:SetText("StupidComboEnergy")
   title:SetTextColor(0.2, 1, 0.8, 1)
 
   local infoFont = (pfUI and pfUI.font_default) or "Fonts\\FRIZQT__.TTF"
@@ -1130,6 +1130,10 @@ local function buildAboutPanel(parent)
     end
     local resolution = GetCVar("gxResolution") or "unknown"
     local scale = GetCVar("uiScale") or "1"
+    local scaleNum = tonumber(scale)
+    if scaleNum then
+      scale = string.format("%.2f", scaleNum)
+    end
     local client = "unknown"
     if GetBuildInfo then
       local v = GetBuildInfo()
@@ -1409,6 +1413,7 @@ local function buildConfigFrame()
   showConfigPanel("about")
   SCE.ConfigFrame = ConfigFrame
   if SCE.debugMsg then SCE.debugMsg("Build config frame complete") end
+  ConfigFrame:Hide()
 end
 
 local function toggleConfig()

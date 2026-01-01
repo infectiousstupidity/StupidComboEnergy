@@ -6,23 +6,6 @@ SCE._moduleLoaded.commands = true
 -- Don't cache SCE functions at load time - they may not be defined yet
 -- Access them directly via SCE.functionName() inside functions
 
-local function parseRGBA(args)
-  local clamp = SCE.clamp or function(x, lo, hi) if x < lo then return lo end if x > hi then return hi end return x end
-  local t = {}
-  for v in string.gfind(args or "", "%S+") do
-    local num = tonumber(v)
-    if num then
-      table.insert(t, num)
-    end
-  end
-  if table.getn(t) < 3 then return nil end
-  local r = clamp(t[1], 0, 1)
-  local g = clamp(t[2], 0, 1)
-  local b = clamp(t[3], 0, 1)
-  local a = clamp(t[4] or 1, 0, 1)
-  return { r, g, b, a }
-end
-
 local function handleSlashCmd(msg)
   if SCE.debugMsg then SCE.debugMsg("Slash command invoked: " .. (msg or "")) end
   msg = msg or ""
@@ -111,32 +94,8 @@ local function handleSlashCmd(msg)
     return
   end
 
-  local c = parseRGBA(rest)
-  if not c then
-    SCE.printMsg("Invalid color. Use 0..1 floats: r g b [a]")
-    return
-  end
-
-  if cmd == "energycolor" then
-    StupidComboEnergyDB.energyFill = c
-  elseif cmd == "energyempty" then
-    StupidComboEnergyDB.energyEmpty = c
-  elseif cmd == "cpfill" then
-    StupidComboEnergyDB.cpFill = c
-  elseif cmd == "cpempty" then
-    StupidComboEnergyDB.cpEmpty = c
-  elseif cmd == "framebg" then
-    StupidComboEnergyDB.frameBg = c
-  else
-    SCE.printMsg("Unknown command. /sce help")
-    return
-  end
-
-  SCE.applyColors()
-  SCE.printMsg("Updated " .. cmd .. ".")
+  SCE.printMsg("Unknown command. /sce help")
 end
-
-SCE.parseRGBA = parseRGBA
 SCE.handleSlashCmd = handleSlashCmd
 
 if SCE.debugMsg then
