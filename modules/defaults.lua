@@ -1,0 +1,131 @@
+StupidComboEnergyNS = StupidComboEnergyNS or {}
+local SCE = StupidComboEnergyNS
+
+SCE.ADDON = "StupidComboEnergy"
+SCE.debugEnabled = true
+SCE_DEBUG_LOG = SCE_DEBUG_LOG or {}
+SCE._moduleLoaded = SCE._moduleLoaded or {}
+SCE._moduleLoaded.defaults = true
+
+function SCE.debugMsg(msg)
+  if not SCE.debugEnabled then return end
+  local line = (SCE.ADDON or "SCE") .. " DEBUG: " .. (msg or "")
+  table.insert(SCE_DEBUG_LOG, line)
+  if DEFAULT_CHAT_FRAME then
+    DEFAULT_CHAT_FRAME:AddMessage("|cff66ccff" .. line .. "|r")
+  elseif ChatFrame1 then
+    ChatFrame1:AddMessage("|cff66ccff" .. line .. "|r")
+  elseif UIErrorsFrame and UIErrorsFrame.AddMessage then
+    UIErrorsFrame:AddMessage(line, 1, 0.6, 0.6, 1)
+  end
+end
+
+-- Saved variables are declared in the TOC. Vanilla (Turtle) doesn't expose _G, so use direct globals.
+StupidComboEnergyDB = StupidComboEnergyDB or {}
+
+SCE.defaults = {
+  point = "CENTER",
+  relativePoint = "CENTER",
+  x = 0,
+  y = -140,
+
+  width = 320,
+  heightEnergy = 14,
+  heightCP = 10,
+  gap = 4,
+  cpGap = 4,
+  frameStrata = "DIALOG",
+  frameLevel = 200,
+  
+  -- Positioning mode (use "1"/"0" strings for Vanilla compatibility)
+  grouped = "1",
+  energyFirst = "1",
+  
+  -- Separate positioning (when grouped = false)
+  energyPoint = "CENTER",
+  energyRelativePoint = "CENTER",
+  energyX = 0,
+  energyY = -130,
+  
+  cpPoint = "CENTER",
+  cpRelativePoint = "CENTER",
+  cpX = 0,
+  cpY = -150,
+
+  -- Colors are {r,g,b,a} in 0..1
+  energyFill = { 0.90, 0.85, 0.20, 0.95 },
+  energyFill2 = { 0.75, 0.70, 0.15, 0.95 },
+  energyStyle = "solid",
+  energyBg   = { 0.10, 0.10, 0.10, 0.70 },
+  energyBorderColor = { 0.00, 0.00, 0.00, 0.85 },
+  energyBorderSize = 1,
+  energyTextFont = "Fonts\\FRIZQT__.TTF",
+  energyTextSize = 12,
+  energyTextColor = { 1.0, 1.0, 1.0, 1.0 },
+  energyTextOffsetX = 0,
+  energyTextOffsetY = 0,
+
+  cpFill   = { 0.95, 0.75, 0.10, 0.95 },
+  cpFill2  = { 0.80, 0.60, 0.05, 0.95 },
+  cpStyle  = "solid",
+  cpEmpty  = { 0.25, 0.25, 0.25, 0.70 },
+  cpBorderColor = { 0.00, 0.00, 0.00, 0.85 },
+  cpBorderSize = 1,
+
+  frameBg  = { 0.00, 0.00, 0.00, 0.35 },
+
+  showWhenNotEnergy = "1",
+  notEnergyAlpha = 0.35,
+  
+  showEnergyTicker = "0",
+  energyTickerColor = { 1.0, 1.0, 1.0, 0.8 },
+  energyTickerGlow = "1",  -- "1" for spark/glow, "0" for solid line
+  energyTickerWidth = 16,   -- Width of ticker (larger for glow effect)
+  
+  -- Combo point separator style: "gap" for gaps between, "border" for separator lines
+  cpSeparatorStyle = "gap",
+  cpSeparatorWidth = 2,  -- Width of separator lines (border style)
+  cpSeparatorColor = { 0.00, 0.00, 0.00, 1.0 },  -- Separator line color
+
+  -- Smoothing model:
+  -- Vanilla energy regen is usually 20 energy per 2 seconds = 10 per second.
+  energyRegenPerSec = 10,
+  energyTickSeconds = 2.0,
+
+  locked = "1",
+}
+
+function SCE.clamp(x, lo, hi)
+  if x < lo then return lo end
+  if x > hi then return hi end
+  return x
+end
+
+function SCE.copyColor(c)
+  return { c[1], c[2], c[3], c[4] }
+end
+
+function SCE.ensureDB()
+  if type(StupidComboEnergyDB) ~= "table" then
+    StupidComboEnergyDB = {}
+  end
+  for k, v in pairs(SCE.defaults) do
+    if StupidComboEnergyDB[k] == nil then
+      if type(v) == "table" then
+        StupidComboEnergyDB[k] = SCE.copyColor(v)
+      else
+        StupidComboEnergyDB[k] = v
+      end
+    end
+  end
+end
+
+function SCE.printMsg(msg)
+  if DEFAULT_CHAT_FRAME then
+    DEFAULT_CHAT_FRAME:AddMessage("|cffffcc00" .. (SCE.ADDON or "SCE") .. "|r " .. (msg or ""))
+  end
+end
+
+if SCE.debugMsg then
+  SCE.debugMsg("Loaded module: defaults.lua")
+end
