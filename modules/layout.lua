@@ -651,6 +651,7 @@ local function layout()
   local showPower = shouldShowPower(db)
   local showDruidMana = shouldShowDruidMana(db)
   local showCastbar = shouldShowCastbar(db)
+  local replaceCastbar = (db.castbarReplaceCombo == "1" and db.grouped == "1")
   local baseLevel = clampFrameLevel(db.frameLevel)
 
   local order = getBarOrder(db)
@@ -826,7 +827,7 @@ local function layout()
         addItem("druidmana", DruidMana, druidManaHeight)
       elseif key == "combo" and showCombo then
         addItem("combo", CP, cpHeight)
-      elseif key == "castbar" and showCastbar then
+      elseif key == "castbar" and showCastbar and not (replaceCastbar and showCombo) then
         addItem("castbar", Castbar, castbarHeight)
       end
     end
@@ -1254,6 +1255,13 @@ local function layout()
   applyBorder(CastbarBorder, castbarBorderSize, db.castbarBorderColor or (SCE.defaults and SCE.defaults.castbarBorderColor) or {0,0,0,1})
   applyBorder(ShiftIndicatorBorder, shiftBorderSize, db.shiftIndicatorBorderColor or {0,0,0,1})
   applyBorder(CPBorder, cpBorderSize, db.cpBorderColor or (SCE.defaults and SCE.defaults.cpBorderColor) or {0,0,0,1})
+
+  if replaceCastbar and showCombo and CP and Castbar then
+    Castbar:ClearAllPoints()
+    Castbar:SetPoint("CENTER", CP, "CENTER", 0, 0)
+    Castbar:SetWidth(CP:GetWidth() or castbarBarWidth)
+    Castbar:SetHeight(CP:GetHeight() or castbarHeight)
+  end
 end
 
 local function updateAlpha()
@@ -1265,6 +1273,7 @@ local function updateAlpha()
   local showCastbar = shouldShowCastbar(db)
   local attachInfo = getShiftAttachInfo(db)
   local showShiftIndicator = db.showShiftIndicator == "1"
+  local castbarOverlay = SCE.castbarOverlayActive
   if showShiftIndicator and UnitClass then
     local _, class = UnitClass("player")
     if class ~= "DRUID" then
@@ -1306,7 +1315,7 @@ local function updateAlpha()
   if showDruidMana then
     DruidMana:SetAlpha(1)
   end
-  if comboVisible then
+  if comboVisible and not castbarOverlay then
     if alpha > 0 then
       CP:SetAlpha(alpha)
       CP:Show()

@@ -91,6 +91,28 @@ end
 
 SCE.setComboPoints = setComboPoints
 
+-- Lightweight event watcher to keep combo points in sync immediately
+local function setupComboScripts()
+  local frame = CreateFrame("Frame")
+  frame:RegisterEvent("UNIT_COMBO_POINTS")
+  frame:RegisterEvent("PLAYER_COMBO_POINTS")
+  frame:RegisterEvent("PLAYER_TARGET_CHANGED")
+  frame:RegisterEvent("PLAYER_ENTERING_WORLD")
+  frame:SetScript("OnEvent", function()
+    if not SCE.setComboPoints then return end
+    local cp = 0
+    if GetComboPoints then
+      cp = GetComboPoints("target") or 0
+    end
+    SCE.setComboPoints(cp)
+    if SCE.updateAlpha then
+      SCE.updateAlpha()
+    end
+  end)
+end
+
+setupComboScripts()
+
 if SCE.debugMsg then
   SCE.debugMsg("Loaded module: combopoints.lua")
 end

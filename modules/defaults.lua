@@ -181,6 +181,9 @@ SCE.defaults = {
   castbarShowTime = "1",
   castbarShowLag = "1",
   castbarLagColor = { 1.0, 0.2, 0.2, 0.3 },
+  castbarIconSide = "left",
+  castbarTextPosition = "left",
+  castbarReplaceCombo = "0",
 
   cpFill   = { 0.95, 0.75, 0.10, 0.95 },
   cpFill2  = { 0.80, 0.60, 0.05, 0.95 },

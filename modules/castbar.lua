@@ -16,6 +16,129 @@ local castState = {
   delay = 0,
 }
 
+local overlayActive = false
+local origPoint = nil
+local origSize = nil
+
+local function getPads()
+  return 4, 4
+end
+
+local function positionCastbarElements(db)
+  local bar = SCE.Castbar
+  if not bar or not db then return end
+  local showIcon = db.castbarShowIcon == "1"
+  local iconSide = db.castbarIconSide or "left"
+  local textPos = db.castbarTextPosition or "left"
+  local iconSize = bar:GetHeight()
+  if iconSize < 12 then iconSize = 12 end
+
+  if bar.icon then
+    bar.icon:ClearAllPoints()
+    bar.icon:SetWidth(iconSize)
+    bar.icon:SetHeight(iconSize)
+    if showIcon then
+      if iconSide == "right" then
+        bar.icon:SetPoint("LEFT", bar, "RIGHT", 2, 0)
+      else
+        bar.icon:SetPoint("RIGHT", bar, "LEFT", -2, 0)
+      end
+      bar.icon:Show()
+    else
+      bar.icon:Hide()
+    end
+  end
+
+  local leftPad, rightPad = getPads()
+
+  if bar.textLeft then
+    bar.textLeft:ClearAllPoints()
+    if textPos == "center" then
+      bar.textLeft:SetPoint("CENTER", bar, "CENTER", 0, 0)
+      bar.textLeft:SetJustifyH("CENTER")
+    elseif textPos == "right" then
+      bar.textLeft:SetPoint("RIGHT", bar, "RIGHT", -rightPad, 0)
+      bar.textLeft:SetJustifyH("RIGHT")
+    else
+      bar.textLeft:SetPoint("LEFT", bar, "LEFT", leftPad, 0)
+      bar.textLeft:SetJustifyH("LEFT")
+    end
+  end
+
+  if bar.textRight then
+    bar.textRight:ClearAllPoints()
+    local timePos = "right"
+    if textPos == "right" then
+      timePos = "left"
+    end
+    if timePos == "left" then
+      bar.textRight:SetPoint("LEFT", bar, "LEFT", leftPad, 0)
+      bar.textRight:SetJustifyH("LEFT")
+    else
+      bar.textRight:SetPoint("RIGHT", bar, "RIGHT", -rightPad, 0)
+      bar.textRight:SetJustifyH("RIGHT")
+    end
+  end
+end
+
+local function setOverlayActive(active)
+  overlayActive = active and true or false
+  SCE.castbarOverlayActive = overlayActive
+end
+
+local function restoreCastbarAnchor()
+  local bar = SCE.Castbar
+  if not bar then return end
+  if overlayActive then
+    if origPoint and origPoint[1] then
+      bar:ClearAllPoints()
+      bar:SetPoint(origPoint[1], origPoint[2], origPoint[3], origPoint[4], origPoint[5])
+    end
+    if origSize then
+      if origSize[1] then bar:SetWidth(origSize[1]) end
+      if origSize[2] then bar:SetHeight(origSize[2]) end
+    end
+  end
+  if SCE.updateAlpha then
+    SCE.updateAlpha()
+  elseif SCE.CP and SCE.CP.Show then
+    SCE.CP:Show()
+  end
+  setOverlayActive(false)
+end
+
+local function applyCastbarOverlay(db)
+  if not db or db.castbarReplaceCombo ~= "1" or db.grouped ~= "1" then return false end
+  if not SCE.shouldShowCombo or not SCE.shouldShowCombo(db) then return false end
+  if not SCE.CP then return false end
+  local bar = SCE.Castbar
+  local cp = SCE.CP
+  if not bar or not cp then return false end
+
+  if not overlayActive then
+    origPoint = { bar:GetPoint() }
+    origSize = { bar:GetWidth(), bar:GetHeight() }
+  end
+
+  bar:ClearAllPoints()
+  bar:SetPoint("CENTER", cp, "CENTER", 0, 0)
+  local w = cp.GetWidth and cp:GetWidth() or (origSize and origSize[1]) or bar:GetWidth()
+  local h = cp.GetHeight and cp:GetHeight() or (origSize and origSize[2]) or bar:GetHeight()
+  if w and w > 0 then bar:SetWidth(w) end
+  if h and h > 0 then bar:SetHeight(h) end
+
+  if cp.Hide then cp:Hide() end
+  if bar.SetFrameLevel and cp.GetFrameLevel then
+    local lvl = cp:GetFrameLevel()
+    if lvl and lvl > 0 then
+      bar:SetFrameLevel(lvl)
+    end
+  end
+
+  setOverlayActive(true)
+  return true
+end
+
 local pfEnv = nil
 local function mod(a, b)
   if b == 0 then return 0 end
@@ -210,6 +333,7 @@ local function updateCastbar()
   if not cast then
     bar:SetAlpha(0)
     bar._active = false
+    restoreCastbarAnchor()
     bar:SetScript("OnUpdate", nil)
     if bar.textLeft then bar.textLeft:SetText("") end
     if bar.textRight then bar.textRight:SetText("") end
@@ -282,34 +406,16 @@ local function updateCastbar()
     bar.textRight:SetText("")
   end
 
-  if showIcon and bar.icon then
-    local size = bar:GetHeight()
-    if size <= 0 then size = 16 end
-    bar.icon:SetWidth(size)
-    bar.icon:SetHeight(size)
-    bar.icon:Show()
-    bar.icon:ClearAllPoints()
-    if pfUI and pfUI.api and pfUI.api.GetBorderSize then
-      local _, border = pfUI.api.GetBorderSize("unitframes")
-      local spacing = (border or 1) * 2
-      bar.icon:SetPoint("TOPRIGHT", bar, "TOPLEFT", -spacing, 0)
-      bar.icon:SetPoint("BOTTOMRIGHT", bar, "BOTTOMLEFT", -spacing, 0)
-    else
-      bar.icon:SetPoint("LEFT", bar, "LEFT", 0, 0)
-    end
+  if bar.icon then
     bar.icon.tex:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
     bar.icon.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-    if bar.textLeft then
-      bar.textLeft:ClearAllPoints()
-      bar.textLeft:SetPoint("LEFT", bar, "LEFT", 4, 0)
-    end
-  else
-    if bar.icon then bar.icon:Hide() end
-    if bar.textLeft then
-      bar.textLeft:ClearAllPoints()
-      bar.textLeft:SetPoint("LEFT", bar, "LEFT", 4, 0)
+    if db.castbarShowIcon ~= "1" then
+      bar.icon:Hide()
+    else
+      bar.icon:Show()
     end
   end
+  positionCastbarElements(db)
 
   if showLag and bar.lag and GetNetStats then
     local _, _, lag = GetNetStats()
@@ -323,6 +429,12 @@ local function updateCastbar()
   elseif bar.lag then
     bar.lag:Hide()
   end
+
+  if not applyCastbarOverlay(db) then
+    restoreCastbarAnchor()
+  end
+
+  positionCastbarElements(db)
 end
 
 local function setupCastbarScripts()
