@@ -50,10 +50,6 @@ local function init()
     SCE.setupHealthScripts()
     rawDebug("Health scripts set")
   end
-  if SCE.setupPowerScripts then
-    SCE.setupPowerScripts()
-    rawDebug("Power scripts set")
-  end
   if SCE.setupDruidManaScripts then
     SCE.setupDruidManaScripts()
     rawDebug("Druid mana scripts set")
@@ -84,6 +80,7 @@ local function init()
     Power:RegisterEvent("UNIT_DISPLAYPOWER")
     Power:RegisterEvent("UNIT_MANA")
     Power:RegisterEvent("UNIT_ENERGY")
+    Power:RegisterEvent("UNIT_RAGE")
     rawDebug("Power events registered")
   else
     rawDebug("Power frame missing")

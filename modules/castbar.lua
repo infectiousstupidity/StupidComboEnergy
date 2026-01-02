@@ -210,6 +210,7 @@ local function updateCastbar()
   if not cast then
     bar:SetAlpha(0)
     bar._active = false
+    bar:SetScript("OnUpdate", nil)
     if bar.textLeft then bar.textLeft:SetText("") end
     if bar.textRight then bar.textRight:SetText("") end
     if bar.icon then bar.icon:Hide() end
@@ -219,6 +220,13 @@ local function updateCastbar()
 
   bar:SetAlpha(1)
   bar._active = true
+  if not bar:GetScript("OnUpdate") then
+    bar:SetScript("OnUpdate", function()
+      if SCE.updateCastbar then
+        SCE.updateCastbar()
+      end
+    end)
+  end
 
   local startSec, endSec
   if timesAreSeconds then
@@ -324,23 +332,6 @@ local function setupCastbarScripts()
   if SCE.applyFonts then
     SCE.applyFonts()
   end
-  bar:SetScript("OnUpdate", function(self)
-    local frame = self or this
-    if not frame then return end
-    local now = GetTime()
-    if frame._active then
-      if SCE.updateCastbar then
-        SCE.updateCastbar()
-      end
-      return
-    end
-    if not frame.tick or frame.tick < now then
-      frame.tick = now + 0.15
-      if SCE.updateCastbar then
-        SCE.updateCastbar()
-      end
-    end
-  end)
 
   bar:RegisterEvent("SPELLCAST_START")
   bar:RegisterEvent("SPELLCAST_STOP")

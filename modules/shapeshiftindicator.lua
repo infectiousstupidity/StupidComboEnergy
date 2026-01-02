@@ -206,6 +206,9 @@ local function setupShiftIndicatorScripts()
 
   eventFrame:SetScript("OnUpdate", function()
     local db = StupidComboEnergyDB or {}
+    if frame and not frame:IsShown() and not (SCE.usesShiftText and SCE.usesShiftText(db)) then
+      return
+    end
     if SCE.shouldShowShiftIndicator and not SCE.shouldShowShiftIndicator(db) then
       if not (SCE.usesShiftText and SCE.usesShiftText(db)) then
         return

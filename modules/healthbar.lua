@@ -143,16 +143,6 @@ local function setupHealthScripts()
       SCE.updateHealth()
     end
   end)
-  bar:SetScript("OnUpdate", function(self)
-    local frame = self or this
-    if not frame then return end
-    if not frame.tick or frame.tick < GetTime() then
-      frame.tick = GetTime() + 0.2
-      if SCE.updateHealth then
-        SCE.updateHealth()
-      end
-    end
-  end)
 end
 
 SCE.updateHealth = updateHealth

@@ -11,6 +11,7 @@ local state = {
   lastPowerMax = 100,
   tickStart = nil,
   tickDuration = 2,
+  nextUpdate = nil,
 }
 
 local function getPowerTextModes(db, isMana, isRage)
@@ -127,13 +128,25 @@ end
 local function onUpdate()
   local bar = SCE.Power
   if not bar or not bar:IsShown() then return end
-
-  local cur, maxv = readPower()
   local db = StupidComboEnergyDB or {}
   local isEnergy = true
   if SCE.isEnergy then
     isEnergy = SCE.isEnergy()
   end
+  if db.showPowerTicker ~= "1" or not isEnergy then
+    if bar.ticker then
+      bar.ticker:Hide()
+    end
+    return
+  end
+
+  local now = GetTime()
+  if state.nextUpdate and now < state.nextUpdate then
+    return
+  end
+  state.nextUpdate = now + 0.05
+
+  local cur, maxv = readPower()
 
   if maxv ~= state.lastPowerMax then
     state.lastPowerMax = maxv
@@ -141,7 +154,7 @@ local function onUpdate()
   end
 
   if cur > state.lastPower then
-    state.tickStart = GetTime()
+    state.tickStart = now
   end
 
   if cur ~= state.lastPower then
@@ -155,17 +168,17 @@ local function onUpdate()
     state.tickDuration = tickSeconds
   end
 
-  if db.showPowerTicker == "1" and bar.ticker and isEnergy then
+  if bar.ticker then
     if cur >= maxv then
       bar.ticker:Hide()
     else
       if not state.tickStart then
-        state.tickStart = GetTime()
+        state.tickStart = now
       end
 
-      local elapsed = GetTime() - state.tickStart
+      local elapsed = now - state.tickStart
       if elapsed > state.tickDuration then
-        state.tickStart = GetTime()
+        state.tickStart = now
         elapsed = 0
       end
 
@@ -178,8 +191,6 @@ local function onUpdate()
       bar.ticker:SetPoint("LEFT", bar, "LEFT", tickerPos, 0)
       bar.ticker:Show()
     end
-  elseif bar.ticker then
-    bar.ticker:Hide()
   end
 end
 
@@ -193,11 +204,34 @@ local function setupPowerScripts()
 
   bar:SetScript("OnUpdate", onUpdate)
   bar:SetScript("OnEvent", function()
-    if event == "UNIT_MANA" or event == "UNIT_ENERGY" or event == "UNIT_DISPLAYPOWER" then
+    local evt = event
+    if not evt then return end
+
+    if evt == "UNIT_MANA" or evt == "UNIT_ENERGY" or evt == "UNIT_RAGE" then
       if arg1 and arg1 ~= "player" then return end
-    end
-    if SCE.updateAll then
-      SCE.updateAll()
+      if SCE.updatePower then
+        SCE.updatePower()
+      end
+      if SCE.updateAlpha then
+        SCE.updateAlpha()
+      end
+      return
+    elseif evt == "UNIT_DISPLAYPOWER" then
+      if arg1 and arg1 ~= "player" then return end
+      if SCE.updateAll then
+        SCE.updateAll()
+      end
+      return
+    elseif evt == "PLAYER_TARGET_CHANGED" or evt == "UNIT_COMBO_POINTS" or evt == "PLAYER_AURAS_CHANGED" then
+      if SCE.updateAll then
+        SCE.updateAll()
+      end
+      return
+    elseif evt == "PLAYER_ENTERING_WORLD" then
+      if SCE.updateAll then
+        SCE.updateAll()
+      end
+      return
     end
   end)
 end

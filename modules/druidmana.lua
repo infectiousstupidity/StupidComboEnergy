@@ -104,8 +104,10 @@ local function setupDruidManaScripts()
 
   if AceLibrary and AceLibrary.HasInstance and AceLibrary:HasInstance("DruidManaLib-1.0") then
     bar:SetScript("OnUpdate", function()
-      if not this.tick or this.tick < GetTime() then
-        this.tick = GetTime() + 0.2
+      if not bar:IsShown() then return end
+      local now = GetTime()
+      if not this.tick or this.tick < now then
+        this.tick = now + 0.25
         if SCE.updateDruidMana then
           SCE.updateDruidMana()
         end
